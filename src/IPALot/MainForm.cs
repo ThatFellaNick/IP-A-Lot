@@ -39,6 +39,9 @@ public sealed class MainForm : Form
     private readonly Image _collapsedIcon = BuildExpanderIcon(false);
     private readonly Image _expandedIcon = BuildExpanderIcon(true);
     private readonly Image _emptyTreeIcon = BuildEmptyTreeIcon();
+    private readonly Image _aliveStatusIcon = BuildStatusIcon(Color.FromArgb(34, 197, 94));
+    private readonly Image _deadStatusIcon = BuildStatusIcon(Color.FromArgb(148, 163, 184));
+    private readonly Image _unknownStatusIcon = BuildStatusIcon(Color.FromArgb(245, 158, 11));
     private readonly List<ScanResultRow> _results = new List<ScanResultRow>();
     private readonly List<ScanResultRow> _visibleResults = new List<ScanResultRow>();
     private readonly HashSet<string> _expandedHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -285,7 +288,14 @@ public sealed class MainForm : Form
             Width = 34,
             ImageLayout = DataGridViewImageCellLayout.Zoom,
         });
-        AddGridColumn(nameof(ScanResultRow.Status), "Status", 90);
+        _resultsGrid.Columns.Add(new DataGridViewImageColumn
+        {
+            Name = "StatusIcon",
+            HeaderText = "",
+            Width = 34,
+            ImageLayout = DataGridViewImageCellLayout.Zoom,
+            ToolTipText = "Status",
+        });
         AddGridColumn(nameof(ScanResultRow.IpAddress), "IP Address", 140);
         AddGridColumn(nameof(ScanResultRow.HostName), "Host Name", 220);
         AddGridColumn(nameof(ScanResultRow.MacAddress), "MAC", 150);
@@ -586,7 +596,20 @@ public sealed class MainForm : Form
 
     private void ResultsGrid_CellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
     {
-        if (e.RowIndex < 0 || _resultsGrid.Columns[e.ColumnIndex].Name != "TreeIcon")
+        if (e.RowIndex < 0)
+        {
+            return;
+        }
+
+        if (_resultsGrid.Columns[e.ColumnIndex].Name == "StatusIcon")
+        {
+            var statusRow = _resultsGrid.Rows[e.RowIndex].DataBoundItem as ScanResultRow;
+            e.Value = GetStatusIcon(statusRow);
+            e.FormattingApplied = true;
+            return;
+        }
+
+        if (_resultsGrid.Columns[e.ColumnIndex].Name != "TreeIcon")
         {
             return;
         }
@@ -598,13 +621,22 @@ public sealed class MainForm : Form
 
     private void ResultsGrid_CellToolTipTextNeeded(object? sender, DataGridViewCellToolTipTextNeededEventArgs e)
     {
-        if (e.RowIndex < 0 || _resultsGrid.Columns[e.ColumnIndex].Name != "TreeIcon")
+        if (e.RowIndex < 0)
         {
             return;
         }
 
         var row = _resultsGrid.Rows[e.RowIndex].DataBoundItem as ScanResultRow;
-        e.ToolTipText = BuildTreeTooltip(row);
+        if (_resultsGrid.Columns[e.ColumnIndex].Name == "StatusIcon")
+        {
+            e.ToolTipText = row?.Status ?? "";
+            return;
+        }
+
+        if (_resultsGrid.Columns[e.ColumnIndex].Name == "TreeIcon")
+        {
+            e.ToolTipText = BuildTreeTooltip(row);
+        }
     }
 
     private void ResultsGrid_CellMouseDown(object? sender, DataGridViewCellMouseEventArgs e)
@@ -708,6 +740,21 @@ public sealed class MainForm : Form
         return _emptyTreeIcon;
     }
 
+    private Image GetStatusIcon(ScanResultRow? row)
+    {
+        if (row?.IsServiceRow == true)
+        {
+            return GetServiceIcon(row.Service?.Kind ?? "");
+        }
+
+        return row?.Status switch
+        {
+            ScanStatuses.Alive => _aliveStatusIcon,
+            ScanStatuses.Dead => _deadStatusIcon,
+            _ => _unknownStatusIcon,
+        };
+    }
+
     private Image GetServiceIcon(string kind)
     {
         return GetServiceIconKind(kind) switch
@@ -759,6 +806,20 @@ public sealed class MainForm : Form
             : new[] { new Point(6, 4), new Point(11, 8), new Point(6, 12) };
 
         graphics.FillPolygon(brush, points);
+        return bitmap;
+    }
+
+    private static Image BuildStatusIcon(Color color)
+    {
+        var bitmap = new Bitmap(16, 16);
+        using var graphics = Graphics.FromImage(bitmap);
+        using var fillBrush = new SolidBrush(color);
+        using var borderPen = new Pen(Color.FromArgb(75, 85, 99));
+
+        graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        graphics.Clear(Color.Transparent);
+        graphics.FillEllipse(fillBrush, 3, 3, 10, 10);
+        graphics.DrawEllipse(borderPen, 3, 3, 10, 10);
         return bitmap;
     }
 
