@@ -5,7 +5,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
-    <ApplicationIcon />
+    <ApplicationIcon>ip-a-lot.ico</ApplicationIcon>
     <AssemblyName>IP A Lot</AssemblyName>
     <RootNamespace>IPALot</RootNamespace>
     <GenerateSupportedRuntime>false</GenerateSupportedRuntime>
