@@ -437,6 +437,8 @@ public sealed class MainForm : Form
         _resultsGrid.CellFormatting += ResultsGrid_CellFormatting;
         _resultsGrid.CellToolTipTextNeeded += ResultsGrid_CellToolTipTextNeeded;
         _resultsGrid.CellMouseDown += ResultsGrid_CellMouseDown;
+        _resultsGrid.MouseEnter += (_, _) => _resultsGrid.Focus();
+        _resultsGrid.MouseWheel += ResultsGrid_MouseWheel;
         _resultsGrid.SelectionChanged += (_, _) => UpdateDetailsPane(GetSelectedRow());
     }
 
@@ -791,6 +793,8 @@ public sealed class MainForm : Form
 
     private void ResultsGrid_CellMouseDown(object? sender, DataGridViewCellMouseEventArgs e)
     {
+        _resultsGrid.Focus();
+
         if (e.Button != MouseButtons.Right || e.RowIndex < 0)
         {
             return;
@@ -810,6 +814,28 @@ public sealed class MainForm : Form
         else if (row is not null)
         {
             BuildCopyMenu(row).Show(Cursor.Position);
+        }
+    }
+
+    private void ResultsGrid_MouseWheel(object? sender, MouseEventArgs e)
+    {
+        if (_resultsGrid.RowCount == 0 || e.Delta == 0)
+        {
+            return;
+        }
+
+        // Some remote/backstage sessions do not hand wheel focus to the grid
+        // reliably. Move the first displayed row ourselves when the event is
+        // delivered so wheel scrolling behaves like the scrollbar.
+        var rowsPerNotch = Math.Max(1, SystemInformation.MouseWheelScrollLines);
+        var direction = e.Delta > 0 ? -1 : 1;
+        var rowDelta = direction * rowsPerNotch;
+        var firstRow = Math.Max(0, _resultsGrid.FirstDisplayedScrollingRowIndex);
+        var targetRow = Math.Max(0, Math.Min(_resultsGrid.RowCount - 1, firstRow + rowDelta));
+
+        if (targetRow != firstRow)
+        {
+            _resultsGrid.FirstDisplayedScrollingRowIndex = targetRow;
         }
     }
 
