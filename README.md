@@ -1,11 +1,14 @@
 # IP-A-Lot
 Find a lot of IPs with this light-weight IP scanner!
 
+![IP A Lot logo](assets/ip-a-lot-logo.png)
+
 IP A Lot is a small .NET desktop scanner for quick LAN inventory work. It accepts
 multiple IPv4 range formats, prefills detected local networks, and shows online
 hosts with MAC addresses plus vendor lookup when the OUI is known. The results
 view includes status filters, search, right-click copy actions, and detected
-items for quick checks such as HTTP, HTTPS, and visible Windows shares.
+items for quick checks such as HTTP, HTTPS, and visible Windows shares. Visible
+results can be exported to HTML, CSV, JSON, or XML.
 
 ## Range examples
 

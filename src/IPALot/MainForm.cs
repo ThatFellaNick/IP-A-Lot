@@ -218,10 +218,19 @@ public sealed class MainForm : Form
             _showDetailsMenuItem,
         });
 
+        var exportMenu = new ToolStripMenuItem("Export");
+        exportMenu.DropDownItems.AddRange(new ToolStripItem[]
+        {
+            new ToolStripMenuItem("HTML...", null, (_, _) => ExportVisibleResults(ExportFormat.Html)),
+            new ToolStripMenuItem("CSV...", null, (_, _) => ExportVisibleResults(ExportFormat.Csv)),
+            new ToolStripMenuItem("JSON...", null, (_, _) => ExportVisibleResults(ExportFormat.Json)),
+            new ToolStripMenuItem("XML...", null, (_, _) => ExportVisibleResults(ExportFormat.Xml)),
+        });
+
         return new MenuStrip
         {
             Dock = DockStyle.Top,
-            Items = { viewMenu },
+            Items = { viewMenu, exportMenu },
         };
     }
 
@@ -538,5 +547,62 @@ public sealed class MainForm : Form
             $"Detected: {detected}",
             $"Notes: {row.Notes}",
         });
+    }
+
+    private void ExportVisibleResults(ExportFormat format)
+    {
+        if (_visibleResults.Count == 0)
+        {
+            MessageBox.Show(this, "There are no visible results to export.", "Export needs results", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        using var saveDialog = new SaveFileDialog
+        {
+            AddExtension = true,
+            FileName = $"ip-a-lot-{DateTime.Now:yyyyMMdd-HHmmss}.{GetExportExtension(format)}",
+            Filter = GetExportFilter(format),
+            OverwritePrompt = true,
+            Title = "Export visible results",
+        };
+
+        if (saveDialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            ExportService.Export(_visibleResults, saveDialog.FileName, format);
+            _statusLabel.Text = $"Exported {_visibleResults.Count:N0} result(s) to {saveDialog.FileName}.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Export did not finish", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private static string GetExportExtension(ExportFormat format)
+    {
+        return format switch
+        {
+            ExportFormat.Html => "html",
+            ExportFormat.Csv => "csv",
+            ExportFormat.Json => "json",
+            ExportFormat.Xml => "xml",
+            _ => "txt",
+        };
+    }
+
+    private static string GetExportFilter(ExportFormat format)
+    {
+        return format switch
+        {
+            ExportFormat.Html => "HTML report (*.html)|*.html",
+            ExportFormat.Csv => "CSV file (*.csv)|*.csv",
+            ExportFormat.Json => "JSON file (*.json)|*.json",
+            ExportFormat.Xml => "XML file (*.xml)|*.xml",
+            _ => "All files (*.*)|*.*",
+        };
     }
 }
