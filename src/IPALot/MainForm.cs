@@ -31,8 +31,12 @@ public sealed class MainForm : Form
     private readonly DataGridView _resultsGrid = new();
     private readonly TreeView _detailsTree = new();
     private readonly BindingSource _resultsSource = new();
+    private readonly System.Windows.Forms.Timer _scanRefreshTimer = new();
     private readonly List<ScanResultRow> _results = new List<ScanResultRow>();
     private readonly List<ScanResultRow> _visibleResults = new List<ScanResultRow>();
+    private bool _viewRefreshPending;
+    private int _lastCompletedCount;
+    private int _lastTotalCount;
     private ToolStripMenuItem _showAliveMenuItem = null!;
     private ToolStripMenuItem _showDeadMenuItem = null!;
     private ToolStripMenuItem _showUnknownMenuItem = null!;
@@ -48,6 +52,7 @@ public sealed class MainForm : Form
         Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
 
         BuildLayout();
+        ConfigureScanRefreshTimer();
         Load += (_, _) => PrefillDetectedNetworks();
     }
 
@@ -323,6 +328,9 @@ public sealed class MainForm : Form
         SetScanningState(true);
 
         _progressBar.Maximum = targets.Count;
+        _lastCompletedCount = 0;
+        _lastTotalCount = targets.Count;
+        _viewRefreshPending = false;
         _statusLabel.Text = $"Scanning {targets.Count:N0} address(es). Coffee may be involved.";
 
         _scanCancellation = new CancellationTokenSource();
@@ -332,14 +340,17 @@ public sealed class MainForm : Form
         {
             var scanner = new NetworkScanner();
             await scanner.ScanAsync(targets, progress, _scanCancellation.Token);
+            FlushScanProgress();
             _statusLabel.Text = $"Done. Found {_results.Count(row => row.Status == ScanStatuses.Alive):N0} alive host(s).";
         }
         catch (OperationCanceledException)
         {
+            FlushScanProgress();
             _statusLabel.Text = "Stopped. The packets have been asked to sit quietly.";
         }
         finally
         {
+            _scanRefreshTimer.Stop();
             _scanCancellation.Dispose();
             _scanCancellation = null;
             SetScanningState(false);
@@ -351,11 +362,11 @@ public sealed class MainForm : Form
         if (progress.Result is not null)
         {
             _results.Add(ScanResultRow.FromResult(progress.Result));
-            ApplyView();
+            _viewRefreshPending = true;
         }
 
-        _progressBar.Value = Math.Min(progress.Completed, _progressBar.Maximum);
-        _statusLabel.Text = $"Scanned {progress.Completed:N0} of {progress.Total:N0}.";
+        _lastCompletedCount = progress.Completed;
+        _lastTotalCount = progress.Total;
     }
 
     private void SetScanningState(bool scanning)
@@ -365,6 +376,15 @@ public sealed class MainForm : Form
         _stopButton.Text = "Stop";
         _rangeInput.Enabled = !scanning;
         _progressBar.Value = 0;
+
+        if (scanning)
+        {
+            _scanRefreshTimer.Start();
+        }
+        else
+        {
+            _scanRefreshTimer.Stop();
+        }
     }
 
     private void StopScan()
@@ -384,10 +404,37 @@ public sealed class MainForm : Form
     {
         _results.Clear();
         _visibleResults.Clear();
+        _lastCompletedCount = 0;
+        _lastTotalCount = 0;
+        _viewRefreshPending = false;
         _resultsSource.ResetBindings(false);
         _detailsTree.Nodes.Clear();
         _progressBar.Value = 0;
         _statusLabel.Text = "Ready. The packet shovel is parked.";
+    }
+
+    private void ConfigureScanRefreshTimer()
+    {
+        _scanRefreshTimer.Interval = 150;
+        _scanRefreshTimer.Tick += (_, _) => FlushScanProgress();
+    }
+
+    private void FlushScanProgress()
+    {
+        if (_lastTotalCount > 0)
+        {
+            _progressBar.Value = Math.Min(_lastCompletedCount, _progressBar.Maximum);
+            if (_scanCancellation is null || !_scanCancellation.IsCancellationRequested)
+            {
+                _statusLabel.Text = $"Scanned {_lastCompletedCount:N0} of {_lastTotalCount:N0}.";
+            }
+        }
+
+        if (_viewRefreshPending)
+        {
+            _viewRefreshPending = false;
+            ApplyView();
+        }
     }
 
     private void ConfigureDetailsTree()

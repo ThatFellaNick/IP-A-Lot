@@ -26,19 +26,22 @@ public sealed class ServiceProbeService
         var services = new List<DetectedService>();
         var host = address.ToString();
 
+        cancellationToken.ThrowIfCancellationRequested();
         if (await IsTcpOpenAsync(host, 80, cancellationToken))
         {
             services.Add(new DetectedService("HTTP", "Web interface", $"http://{host}/", "Port 80 responded"));
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         if (await IsTcpOpenAsync(host, 443, cancellationToken))
         {
             services.Add(new DetectedService("HTTPS", "Secure web interface", $"https://{host}/", "Port 443 responded"));
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         if (await IsTcpOpenAsync(host, 445, cancellationToken))
         {
-            var shares = ShareEnumerationService.GetShares(host);
+            var shares = await GetSharesAsync(host, cancellationToken);
             if (shares.Count == 0)
             {
                 services.Add(new DetectedService("Shares", "SMB detected", $@"\\{host}", "Port 445 responded"));
@@ -57,10 +60,12 @@ public sealed class ServiceProbeService
 
     private static async Task<bool> IsTcpOpenAsync(string host, int port, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         using var client = new TcpClient();
         var connectTask = client.ConnectAsync(host, port);
         var delayTask = Task.Delay(ProbeTimeoutMilliseconds, cancellationToken);
         var completedTask = await Task.WhenAny(connectTask, delayTask);
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (completedTask != connectTask)
         {
@@ -76,6 +81,14 @@ public sealed class ServiceProbeService
         {
             return false;
         }
+    }
+
+    private static async Task<IReadOnlyList<string>> GetSharesAsync(string host, CancellationToken cancellationToken)
+    {
+        var shareTask = Task.Run(() => ShareEnumerationService.GetShares(host), cancellationToken);
+        var completedTask = await Task.WhenAny(shareTask, Task.Delay(ProbeTimeoutMilliseconds, cancellationToken));
+        cancellationToken.ThrowIfCancellationRequested();
+        return completedTask == shareTask ? await shareTask : Array.Empty<string>();
     }
 }
 

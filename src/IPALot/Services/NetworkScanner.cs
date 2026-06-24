@@ -94,7 +94,7 @@ public sealed class NetworkScanner
         var vendor = macAddress is null ? null : _ouiLookupService.LookupVendor(macAddress);
         var detectedServices = await _serviceProbeService.ProbeAsync(target, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
-        var hostName = await hostNameTask;
+        var hostName = await WaitForHostNameAsync(hostNameTask, cancellationToken);
 
         return new ScanResult(
             target,
@@ -118,6 +118,13 @@ public sealed class NetworkScanner
         {
             return null;
         }
+    }
+
+    private static async Task<string?> WaitForHostNameAsync(Task<string?> hostNameTask, CancellationToken cancellationToken)
+    {
+        var completedTask = await Task.WhenAny(hostNameTask, Task.Delay(250, cancellationToken));
+        cancellationToken.ThrowIfCancellationRequested();
+        return completedTask == hostNameTask ? await hostNameTask : null;
     }
 
     private static string? BuildNotes(string? hostName, string? macAddress, string? vendor, int serviceCount)
