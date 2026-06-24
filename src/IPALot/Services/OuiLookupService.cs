@@ -21,7 +21,11 @@ public sealed class OuiLookupService
 
     public OuiLookupService()
     {
+        // Load a small fallback first so vendor lookup still works if someone
+        // builds the project without the embedded CSV resource.
         _vendors = LoadBuiltInVendors();
+        // The embedded CSV then extends and overwrites the fallback entries
+        // with the larger generated database.
         LoadEmbeddedCsv(_vendors);
     }
 
@@ -79,6 +83,8 @@ public sealed class OuiLookupService
 
     private static void LoadEmbeddedCsv(Dictionary<string, string> vendors)
     {
+        // Keeping the OUI data as an embedded manifest resource preserves the
+        // standalone-exe deployment model.
         using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("IPALot.Data.oui.csv");
         if (stream is null)
         {
@@ -100,6 +106,7 @@ public sealed class OuiLookupService
         }
 
         var csvLine = line!;
+        // Vendor names may contain commas, so split only once: prefix,vendor.
         var parts = csvLine.Split(new[] { ',' }, 2).Select(part => part.Trim()).ToArray();
         if (parts.Length != 2)
         {
@@ -115,6 +122,7 @@ public sealed class OuiLookupService
 
     private static string? NormalizePrefix(string value)
     {
+        // Accept MACs written with colons, hyphens, dots, or bare hex.
         var hexCharacters = new string(value.Where(Uri.IsHexDigit).Take(6).ToArray()).ToUpperInvariant();
         return hexCharacters.Length == 6 ? hexCharacters : null;
     }

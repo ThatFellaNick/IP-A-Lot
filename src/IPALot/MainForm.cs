@@ -24,6 +24,8 @@ namespace IPALot;
 
 public sealed class MainForm : Form
 {
+    // Taglines are intentionally kept in code so the single executable remains
+    // portable and does not need a sidecar text/resource file at runtime.
     private static readonly string[] Taglines =
     {
         "Find the devices before they find the ticket queue.",
@@ -161,6 +163,8 @@ public sealed class MainForm : Form
 
     private static Image? LoadHeaderLogo()
     {
+        // The small header logo is embedded as a manifest resource by the
+        // project file, which keeps the application copy-and-run friendly.
         using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("IPALot.Assets.logo.png");
         return stream is null ? null : Image.FromStream(stream);
     }
@@ -169,6 +173,8 @@ public sealed class MainForm : Form
     {
         MainMenuStrip = BuildMenu();
 
+        // Keep the menu in its own top row so it attaches to the window edge,
+        // while the content panel owns the normal interior padding.
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -384,6 +390,8 @@ public sealed class MainForm : Form
 
     private void ConfigureResultsGrid()
     {
+        // The first image column behaves like a tiny tree expander. Service
+        // detections are inserted as normal child rows when a host is expanded.
         _resultsGrid.Dock = DockStyle.Fill;
         _resultsGrid.AllowUserToAddRows = false;
         _resultsGrid.AllowUserToDeleteRows = false;
@@ -477,6 +485,8 @@ public sealed class MainForm : Form
         _viewRefreshPending = false;
         _statusLabel.Text = $"Scanning {targets.Count:N0} address(es). Coffee may be involved.";
 
+        // A fresh token source is created for every scan. StopScan cancels this
+        // token, and the scanner checks it between each network operation.
         _scanCancellation = new CancellationTokenSource();
         var progress = new Progress<ScanProgress>(OnScanProgress);
 
@@ -503,6 +513,9 @@ public sealed class MainForm : Form
 
     private void OnScanProgress(ScanProgress progress)
     {
+        // Progress callbacks arrive on the UI thread, but updating thousands of
+        // grid rows one-by-one is still noisy. Buffer the new data and let the
+        // timer repaint the visible view in small batches.
         if (progress.Result is not null)
         {
             _results.Add(ScanResultRow.FromResult(progress.Result));
@@ -538,6 +551,8 @@ public sealed class MainForm : Form
             return;
         }
 
+        // Disable the button immediately so repeated clicks cannot queue extra
+        // cancellation work while the scanner is unwinding.
         _statusLabel.Text = "Stopping scan...";
         _stopButton.Enabled = false;
         _stopButton.Text = "Stopping";
@@ -560,6 +575,8 @@ public sealed class MainForm : Form
 
     private void ConfigureScanRefreshTimer()
     {
+        // Batching scan updates keeps the Stop button and window chrome
+        // responsive even when a large subnet is returning results quickly.
         _scanRefreshTimer.Interval = 150;
         _scanRefreshTimer.Tick += (_, _) => FlushScanProgress();
     }
@@ -598,6 +615,9 @@ public sealed class MainForm : Form
         foreach (var row in filtered)
         {
             _visibleResults.Add(row);
+            // Child service rows are generated only for the current view. The
+            // scanner stores services on the host result, which makes filtering,
+            // exporting, and collapsing hosts simpler.
             if (_expandedHosts.Contains(row.IpAddress) && row.Source?.DetectedServices.Count > 0)
             {
                 _visibleResults.AddRange(row.Source.DetectedServices.Select(service => ScanResultRow.FromService(row, service)));
@@ -767,6 +787,8 @@ public sealed class MainForm : Form
         _resultsGrid.CurrentCell = _resultsGrid.Rows[e.RowIndex].Cells[Math.Max(e.ColumnIndex, 0)];
 
         var row = _resultsGrid.Rows[e.RowIndex].DataBoundItem as ScanResultRow;
+        // Host rows get copy helpers; detected service rows get actions that
+        // make sense for paths and URLs.
         if (row?.Service is not null)
         {
             BuildDetectedServiceActionMenu(row.Service).Show(Cursor.Position);
@@ -843,6 +865,8 @@ public sealed class MainForm : Form
 
     private Image GetTreeIcon(ScanResultRow? row)
     {
+        // Service child rows intentionally have a blank tree icon. Their type
+        // icon appears in the status column so folder/web icons are not doubled.
         if (row?.Service is not null)
         {
             return _emptyTreeIcon;
@@ -927,6 +951,8 @@ public sealed class MainForm : Form
 
     private static Image BuildStatusIcon(Color color)
     {
+        // Small hand-drawn bitmaps avoid external icon files while still giving
+        // each status a quick visual cue.
         var bitmap = new Bitmap(16, 16);
         using var graphics = Graphics.FromImage(bitmap);
         using var fillBrush = new SolidBrush(color);
@@ -1033,6 +1059,8 @@ public sealed class MainForm : Form
 
         try
         {
+            // Export exactly what the operator can see after status filters,
+            // search, and host expansion are applied.
             ExportService.Export(_visibleResults, saveDialog.FileName, format);
             _statusLabel.Text = $"Exported {_visibleResults.Count:N0} result(s) to {saveDialog.FileName}.";
         }

@@ -26,6 +26,8 @@ public sealed class ServiceProbeService
         var services = new List<DetectedService>();
         var host = address.ToString();
 
+        // Keep probes intentionally small: a TCP connect tells us whether a
+        // common admin surface is present without sending application payloads.
         cancellationToken.ThrowIfCancellationRequested();
         if (await IsTcpOpenAsync(host, 80, cancellationToken))
         {
@@ -41,6 +43,8 @@ public sealed class ServiceProbeService
         cancellationToken.ThrowIfCancellationRequested();
         if (await IsTcpOpenAsync(host, 445, cancellationToken))
         {
+            // Port 445 gets a second pass so visible shares can be expanded and
+            // copied directly from the results grid.
             var shares = await GetSharesAsync(host, cancellationToken);
             if (shares.Count == 0)
             {
@@ -85,6 +89,8 @@ public sealed class ServiceProbeService
 
     private static async Task<IReadOnlyList<string>> GetSharesAsync(string host, CancellationToken cancellationToken)
     {
+        // NetShareEnum is synchronous. Run it behind a timeout so one slow host
+        // cannot stall the entire scan lane.
         var shareTask = Task.Run(() => ShareEnumerationService.GetShares(host), cancellationToken);
         var completedTask = await Task.WhenAny(shareTask, Task.Delay(ProbeTimeoutMilliseconds, cancellationToken));
         cancellationToken.ThrowIfCancellationRequested();
@@ -99,6 +105,8 @@ public static class ShareEnumerationService
         var shares = new List<string>();
         var serverName = $@"\\{host}";
         var resumeHandle = IntPtr.Zero;
+        // Level 1 returns the public share name and remark, which is enough for
+        // display without requiring deeper filesystem permissions.
         var result = NetShareEnum(serverName, 1, out var buffer, -1, out var entriesRead, out _, ref resumeHandle);
 
         if (result != 0 || buffer == IntPtr.Zero)
@@ -114,6 +122,8 @@ public static class ShareEnumerationService
             for (var index = 0; index < entriesRead; index++)
             {
                 var shareInfo = (ShareInfo1)Marshal.PtrToStructure(offset, typeof(ShareInfo1));
+                // Hide administrative shares such as C$ and ADMIN$; they are
+                // expected noise for this UI.
                 if (!string.IsNullOrWhiteSpace(shareInfo.NetName) && !shareInfo.NetName.EndsWith("$", StringComparison.Ordinal))
                 {
                     shares.Add(shareInfo.NetName);

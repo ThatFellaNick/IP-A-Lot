@@ -21,6 +21,8 @@ public static class ExportService
 {
     public static void Export(IReadOnlyList<ScanResultRow> rows, string path, ExportFormat format)
     {
+        // The caller passes the current visible grid rows, so exports honor the
+        // operator's status filters, search text, and expanded service rows.
         switch (format)
         {
             case ExportFormat.Html:
@@ -42,6 +44,8 @@ public static class ExportService
 
     private static string BuildHtml(IReadOnlyList<ScanResultRow> rows)
     {
+        // HTML output is intentionally self-contained for easy ticket/email
+        // handoff from technician machines.
         var builder = new StringBuilder();
         builder.AppendLine("<!doctype html>");
         builder.AppendLine("<html lang=\"en\">");
@@ -85,6 +89,8 @@ public static class ExportService
 
     private static string BuildCsv(IReadOnlyList<ScanResultRow> rows)
     {
+        // Quote every CSV field. It is simpler than selectively quoting and it
+        // handles commas, newlines, and spreadsheet paste behavior cleanly.
         var builder = new StringBuilder();
         builder.AppendLine("Status,IP,Name,MAC,Vendor,Ping,Detected,Notes");
 
@@ -108,6 +114,8 @@ public static class ExportService
 
     private static string BuildJson(IReadOnlyList<ScanResultRow> rows)
     {
+        // Manual JSON keeps the executable dependency-light on .NET Framework.
+        // Values are still escaped by Json() below before writing.
         var builder = new StringBuilder();
         builder.AppendLine("[");
 
@@ -148,6 +156,8 @@ public static class ExportService
 
     private static string BuildXml(IReadOnlyList<ScanResultRow> rows)
     {
+        // XElement handles XML escaping and keeps this format safer than manual
+        // string assembly.
         var document = new XDocument(
             new XElement("ipALotExport",
                 new XAttribute("createdUtc", DateTime.UtcNow.ToString("u")),

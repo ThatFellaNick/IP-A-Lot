@@ -22,6 +22,8 @@ public static class NetworkInterfaceService
 
         foreach (var adapter in NetworkInterface.GetAllNetworkInterfaces())
         {
+            // Ignore disabled and loopback adapters so the default scan target
+            // list starts with practical LAN ranges.
             if (adapter.OperationalStatus != OperationalStatus.Up || adapter.NetworkInterfaceType == NetworkInterfaceType.Loopback)
             {
                 continue;
@@ -35,6 +37,8 @@ public static class NetworkInterfaceService
                     continue;
                 }
 
+                // Convert address + subnet mask into CIDR text because the
+                // range parser already understands that input style.
                 var network = GetNetworkAddress(unicast.Address, unicast.IPv4Mask);
                 var prefixLength = CountPrefixBits(unicast.IPv4Mask);
                 ranges.Add($"{network}/{prefixLength}");

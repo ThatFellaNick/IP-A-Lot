@@ -19,6 +19,8 @@ public static class IpRangeParser
 
     public static IEnumerable<IPAddress> ParseMany(string input)
     {
+        // Operators tend to paste ranges in comma lists, semicolon lists, or
+        // one-per-line notes. Accept all of those separators.
         var tokens = SplitAndTrim(input, ',', ';', '\r', '\n');
 
         foreach (var token in tokens)
@@ -68,6 +70,8 @@ public static class IpRangeParser
         var network = baseValue & mask;
         var broadcast = network | ~mask;
 
+        // For normal subnets skip network and broadcast addresses. /31 and /32
+        // are point-to-point/single-host cases, so keep their full range.
         var start = prefixLength <= 30 ? network + 1 : network;
         var end = prefixLength <= 30 ? broadcast - 1 : broadcast;
         return BuildRange(start, end, token);
@@ -86,6 +90,8 @@ public static class IpRangeParser
             return BuildRange(ToUInt32(startAddress), ToUInt32(endAddress), token);
         }
 
+        // Support shorthand like 192.168.2.0-254 by reusing the first three
+        // octets from the starting address.
         var startOctets = SplitAndTrim(parts[0], '.');
         if (startOctets.Length == 4 && byte.TryParse(startOctets[3], out var startLastOctet) && byte.TryParse(parts[1], out var endLastOctet))
         {
@@ -107,6 +113,8 @@ public static class IpRangeParser
         var count = end - start + 1;
         if (count > MaxTargetsPerToken)
         {
+            // This is a desktop utility, not an internet crawler. The cap keeps
+            // accidental giant ranges from tying up the UI for ages.
             throw new FormatException($"'{originalToken}' expands to {count:N0} addresses. Keep each range at {MaxTargetsPerToken:N0} or fewer.");
         }
 

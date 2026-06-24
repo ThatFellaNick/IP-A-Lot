@@ -27,6 +27,8 @@ public static class MacAddressService
         var macBuffer = new byte[6];
         var macLength = macBuffer.Length;
 
+        // SendARP asks Windows for the neighbor-cache entry. The scanner pings
+        // first so this call usually has a warmed ARP table to read from.
         var result = SendARP(destination, 0, macBuffer, ref macLength);
         if (result != 0 || macLength <= 0)
         {

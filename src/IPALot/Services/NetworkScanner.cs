@@ -31,6 +31,8 @@ public sealed class NetworkScanner
         var targetQueue = new ConcurrentQueue<IPAddress>(targets);
         var workerCount = Math.Min(MaxConcurrency, targets.Count);
 
+        // A bounded worker queue avoids creating one Task per IP, which keeps
+        // large ranges from overwhelming older technician machines.
         var scanTasks = Enumerable.Range(0, workerCount).Select(_ => Task.Run(async () =>
         {
             while (!cancellationToken.IsCancellationRequested && targetQueue.TryDequeue(out var target))
@@ -58,6 +60,8 @@ public sealed class NetworkScanner
 
         try
         {
+            // SendPingAsync has its own timeout but no cancellation token on
+            // .NET Framework, so race it against a cancellable delay.
             var pingTask = ping.SendPingAsync(target, PingTimeoutMilliseconds);
             var completedTask = await Task.WhenAny(pingTask, Task.Delay(Timeout.Infinite, cancellationToken));
             cancellationToken.ThrowIfCancellationRequested();
@@ -78,6 +82,8 @@ public sealed class NetworkScanner
 
         if (reply.Status != IPStatus.Success)
         {
+            // Dead hosts stop here. Vendor, ARP, and service checks are only
+            // attempted for hosts that answered ICMP.
             return new ScanResult(
                 target,
                 ScanStatuses.Dead,
@@ -89,6 +95,8 @@ public sealed class NetworkScanner
                 detectedServices: null);
         }
 
+        // DNS can be slow or missing. Start it in parallel with the local ARP
+        // and service checks, then give it a short final window below.
         var hostNameTask = ResolveHostNameAsync(target);
         var macAddress = MacAddressService.GetMacAddress(target);
         var vendor = macAddress is null ? null : _ouiLookupService.LookupVendor(macAddress);
@@ -122,6 +130,7 @@ public sealed class NetworkScanner
 
     private static async Task<string?> WaitForHostNameAsync(Task<string?> hostNameTask, CancellationToken cancellationToken)
     {
+        // Do not let a stubborn reverse lookup make the whole scan feel stuck.
         var completedTask = await Task.WhenAny(hostNameTask, Task.Delay(250, cancellationToken));
         cancellationToken.ThrowIfCancellationRequested();
         return completedTask == hostNameTask ? await hostNameTask : null;
