@@ -23,6 +23,83 @@ namespace IPALot;
 
 public sealed class MainForm : Form
 {
+    private static readonly string[] Taglines =
+    {
+        "Find the devices before they find the ticket queue.",
+        "Because users won't tell you they plugged it in.",
+        "Discovering surprises since the last network outage.",
+        "Finding devices nobody remembers buying.",
+        "Locate it before accounting asks about it.",
+        "Know what's on your network before users do.",
+        "Because \"what's that IP?\" gets old fast.",
+        "Find it before it becomes a Priority 1.",
+        "Asset management through mild paranoia.",
+        "The first step in every incident is finding the thing.",
+        "Trust, but verify. Then scan anyway.",
+        "Turning unknown devices into known problems.",
+        "Making shadow IT slightly less shadowy.",
+        "Because spreadsheets aren't network inventory.",
+        "Helping you ask, \"Who plugged this in?\"",
+        "Finding rogue devices one bad decision at a time.",
+        "Your network has secrets. We know.",
+        "For when \"it should be gone\" isn't good enough.",
+        "Scanning today, preventing panic tomorrow.",
+        "Because DHCP has trust issues.",
+        "Every IP has a story. Most are disappointing.",
+        "Finding things that definitely weren't approved.",
+        "Discovering devices and crushing dreams.",
+        "Powered by caffeine and distrust.",
+        "We scan. We judge. We document.",
+        "The network equivalent of checking under the bed.",
+        "Like a metal detector, but for bad ideas.",
+        "Finding printers nobody will admit owning.",
+        "If it's plugged in, we'll find it.",
+        "Making network gremlins easier to identify.",
+        "Because every network has that one printer.",
+        "Discovering printers since 1997.",
+        "Identifying e-waste masquerading as printers.",
+        "Because printers are just tickets waiting to happen.",
+        "Locating the source of your toner-related suffering.",
+        "We found the printer. Sorry.",
+        "Network discovery and printer disappointment.",
+        "Helping you find devices you'd rather not support.",
+        "Warning: May detect printers.",
+        "Find the Raspberry Pi before it finds production.",
+        "Discovering unsanctioned creativity.",
+        "Helping security sleep slightly better.",
+        "If it shouldn't be there, we'll probably find it.",
+        "Because users are innovative.",
+        "Finding yesterday's bad ideas today.",
+        "Every rogue device eventually becomes your problem.",
+        "Shine a light on the shadow network.",
+        "Uncovering secrets one subnet at a time.",
+        "Because \"it worked yesterday\" isn't documentation.",
+        "Helping prove it's not the firewall.",
+        "We find the devices. You explain them.",
+        "Scanning first, blaming later.",
+        "Inventory today, troubleshooting tomorrow.",
+        "Because guessing is not a monitoring strategy.",
+        "The answer is always in the network somewhere.",
+        "Know thy subnet.",
+        "Helping admins sleep through the night.",
+        "One scan away from more questions.",
+        "IP A Lot. Professionally.",
+        "IP A Lot So You Don't Have To.",
+        "IP A Lot, Therefore I Am.",
+        "IP A Lot. It's a networking thing.",
+        "We IP A Lot Around Here.",
+        "IP A Lot and I'm Proud of It.",
+        "The Enterprise Leader in IP'ing A Lot.",
+        "Serious Network Discovery. Questionable Branding.",
+        "Number One in Number Ones.",
+        "Relieving Network Uncertainty Since 2026.",
+        "Streamlining Discovery, One IP at a Time.",
+        "Taking the piss out of network management.",
+        "The #1 scanner for finding #2 problems.",
+    };
+
+    private static readonly Random TaglineRandom = new Random();
+
     private readonly TextBox _rangeInput = new();
     private readonly TextBox _searchInput = new();
     private readonly Button _scanButton = new();
@@ -75,6 +152,11 @@ public sealed class MainForm : Form
         return Icon.ExtractAssociatedIcon(Application.ExecutablePath);
     }
 
+    private static string PickTagline()
+    {
+        return Taglines[TaglineRandom.Next(Taglines.Length)];
+    }
+
     private void BuildLayout()
     {
         MainMenuStrip = BuildMenu();
@@ -114,7 +196,7 @@ public sealed class MainForm : Form
 
         var subtitle = new Label
         {
-            Text = "Find the devices before they find the ticket queue.",
+            Text = PickTagline(),
             AutoSize = true,
             ForeColor = Color.FromArgb(88, 97, 108),
             Margin = new Padding(0, 0, 0, 8),
