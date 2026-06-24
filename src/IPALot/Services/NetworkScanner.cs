@@ -142,7 +142,7 @@ public sealed class NetworkScanner
 
         if (hostName is null)
         {
-            notes.Enqueue("DNS is keeping secrets");
+            notes.Enqueue("No hostname found");
         }
 
         if (macAddress is null)
