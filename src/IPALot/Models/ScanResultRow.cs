@@ -18,6 +18,9 @@ namespace IPALot.Models
         public string RoundtripTime { get; set; } = "";
         public string Notes { get; set; } = "";
         public ScanResult? Source { get; set; }
+        public DetectedService? Service { get; set; }
+        public bool IsServiceRow { get; set; }
+        public string ParentIpAddress { get; set; } = "";
 
         public static ScanResultRow FromResult(ScanResult result)
         {
@@ -31,6 +34,21 @@ namespace IPALot.Models
                 RoundtripTime = result.RoundtripTime == null ? "" : $"{result.RoundtripTime} ms",
                 Notes = result.Notes ?? "",
                 Source = result,
+            };
+        }
+
+        public static ScanResultRow FromService(ScanResultRow parent, DetectedService service)
+        {
+            return new ScanResultRow
+            {
+                Status = service.Kind,
+                IpAddress = service.Target,
+                HostName = service.Name,
+                Notes = service.Notes,
+                Source = parent.Source,
+                Service = service,
+                IsServiceRow = true,
+                ParentIpAddress = parent.IpAddress,
             };
         }
     }

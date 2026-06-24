@@ -36,10 +36,12 @@ public sealed class MainForm : Form
     private readonly Image _shareDetectedIcon = BuildShareDetectedIcon();
     private readonly Image _webDetectedIcon = BuildWebDetectedIcon();
     private readonly Image _genericDetectedIcon = SystemIcons.Information.ToBitmap();
-    private readonly Image _noDetectedIcon = BuildEmptyDetectedIcon();
-    private readonly Dictionary<string, Image> _detectedSummaryIcons = new Dictionary<string, Image>();
+    private readonly Image _collapsedIcon = BuildExpanderIcon(false);
+    private readonly Image _expandedIcon = BuildExpanderIcon(true);
+    private readonly Image _emptyTreeIcon = BuildEmptyTreeIcon();
     private readonly List<ScanResultRow> _results = new List<ScanResultRow>();
     private readonly List<ScanResultRow> _visibleResults = new List<ScanResultRow>();
+    private readonly HashSet<string> _expandedHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     private bool _viewRefreshPending;
     private int _lastCompletedCount;
     private int _lastTotalCount;
@@ -276,19 +278,18 @@ public sealed class MainForm : Form
         _resultsGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _resultsGrid.ReadOnly = true;
 
+        _resultsGrid.Columns.Add(new DataGridViewImageColumn
+        {
+            Name = "TreeIcon",
+            HeaderText = "",
+            Width = 34,
+            ImageLayout = DataGridViewImageCellLayout.Zoom,
+        });
         AddGridColumn(nameof(ScanResultRow.Status), "Status", 90);
         AddGridColumn(nameof(ScanResultRow.IpAddress), "IP Address", 140);
         AddGridColumn(nameof(ScanResultRow.HostName), "Host Name", 220);
         AddGridColumn(nameof(ScanResultRow.MacAddress), "MAC", 150);
         AddGridColumn(nameof(ScanResultRow.Vendor), "Vendor", 190);
-        _resultsGrid.Columns.Add(new DataGridViewImageColumn
-        {
-            Name = "DetectedIcon",
-            HeaderText = "Detected",
-            Width = 92,
-            ImageLayout = DataGridViewImageCellLayout.Normal,
-            ToolTipText = "Detected items",
-        });
         AddGridColumn(nameof(ScanResultRow.RoundtripTime), "Ping", 80);
         AddGridColumn(nameof(ScanResultRow.Notes), "Notes", 260, DataGridViewAutoSizeColumnMode.Fill);
 
@@ -421,6 +422,7 @@ public sealed class MainForm : Form
     {
         _results.Clear();
         _visibleResults.Clear();
+        _expandedHosts.Clear();
         _lastCompletedCount = 0;
         _lastTotalCount = 0;
         _viewRefreshPending = false;
@@ -467,7 +469,15 @@ public sealed class MainForm : Form
         var filtered = _results.Where(PassesStatusFilter).Where(row => MatchesSearch(row, search)).ToList();
 
         _visibleResults.Clear();
-        _visibleResults.AddRange(filtered);
+        foreach (var row in filtered)
+        {
+            _visibleResults.Add(row);
+            if (_expandedHosts.Contains(row.IpAddress) && row.Source?.DetectedServices.Count > 0)
+            {
+                _visibleResults.AddRange(row.Source.DetectedServices.Select(service => ScanResultRow.FromService(row, service)));
+            }
+        }
+
         _resultsSource.ResetBindings(false);
         UpdateDetailsPane(GetSelectedRow());
     }
@@ -515,6 +525,16 @@ public sealed class MainForm : Form
     private void UpdateDetailsPane(ScanResultRow? row)
     {
         _detailsTree.Nodes.Clear();
+        if (row?.Service is not null)
+        {
+            var serviceNode = _detailsTree.Nodes.Add(row.Service.ToString());
+            serviceNode.Nodes.Add($"Type: {row.Service.Kind}");
+            serviceNode.Nodes.Add($"Path: {row.Service.Target}");
+            AddIfPresent(serviceNode, "Notes", row.Service.Notes);
+            serviceNode.Expand();
+            return;
+        }
+
         if (row?.Source is null)
         {
             _detailsTree.Nodes.Add("Select a result to inspect detected things.");
@@ -555,36 +575,36 @@ public sealed class MainForm : Form
 
     private void ResultsGrid_CellContentClick(object? sender, DataGridViewCellEventArgs e)
     {
-        if (e.RowIndex < 0 || _resultsGrid.Columns[e.ColumnIndex].Name != "DetectedIcon")
+        if (e.RowIndex < 0 || _resultsGrid.Columns[e.ColumnIndex].Name != "TreeIcon")
         {
             return;
         }
 
         var row = _resultsGrid.Rows[e.RowIndex].DataBoundItem as ScanResultRow;
-        ShowDetectedDropdown(row, e.ColumnIndex, e.RowIndex);
+        ToggleHostExpansion(row);
     }
 
     private void ResultsGrid_CellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
     {
-        if (e.RowIndex < 0 || _resultsGrid.Columns[e.ColumnIndex].Name != "DetectedIcon")
+        if (e.RowIndex < 0 || _resultsGrid.Columns[e.ColumnIndex].Name != "TreeIcon")
         {
             return;
         }
 
         var row = _resultsGrid.Rows[e.RowIndex].DataBoundItem as ScanResultRow;
-        e.Value = BuildDetectedSummaryIcon(row);
+        e.Value = GetTreeIcon(row);
         e.FormattingApplied = true;
     }
 
     private void ResultsGrid_CellToolTipTextNeeded(object? sender, DataGridViewCellToolTipTextNeededEventArgs e)
     {
-        if (e.RowIndex < 0 || _resultsGrid.Columns[e.ColumnIndex].Name != "DetectedIcon")
+        if (e.RowIndex < 0 || _resultsGrid.Columns[e.ColumnIndex].Name != "TreeIcon")
         {
             return;
         }
 
         var row = _resultsGrid.Rows[e.RowIndex].DataBoundItem as ScanResultRow;
-        e.ToolTipText = BuildDetectedTooltip(row);
+        e.ToolTipText = BuildTreeTooltip(row);
     }
 
     private void ResultsGrid_CellMouseDown(object? sender, DataGridViewCellMouseEventArgs e)
@@ -599,45 +619,50 @@ public sealed class MainForm : Form
         _resultsGrid.CurrentCell = _resultsGrid.Rows[e.RowIndex].Cells[Math.Max(e.ColumnIndex, 0)];
 
         var row = _resultsGrid.Rows[e.RowIndex].DataBoundItem as ScanResultRow;
-        if (row is not null)
+        if (row?.Service is not null)
+        {
+            BuildDetectedServiceActionMenu(row.Service).Show(Cursor.Position);
+        }
+        else if (row is not null)
         {
             BuildCopyMenu(row).Show(Cursor.Position);
         }
     }
 
-    private void ShowDetectedDropdown(ScanResultRow? row, int columnIndex, int rowIndex)
+    private void ToggleHostExpansion(ScanResultRow? row)
+    {
+        if (row?.IsServiceRow != false || row.Source?.DetectedServices.Count == 0)
+        {
+            return;
+        }
+
+        if (!_expandedHosts.Add(row.IpAddress))
+        {
+            _expandedHosts.Remove(row.IpAddress);
+        }
+
+        ApplyView();
+    }
+
+    private ContextMenuStrip BuildDetectedServiceActionMenu(DetectedService service)
     {
         var menu = new ContextMenuStrip();
-        if (row?.Source?.DetectedServices.Count > 0)
-        {
-            foreach (var service in row.Source.DetectedServices)
-            {
-                menu.Items.Add(BuildDetectedServiceMenuItem(service));
-            }
-        }
-        else
-        {
-            menu.Items.Add("Nothing extra detected").Enabled = false;
-        }
-
-        var cellRectangle = _resultsGrid.GetCellDisplayRectangle(columnIndex, rowIndex, true);
-        menu.Show(_resultsGrid, cellRectangle.Left, cellRectangle.Bottom);
+        menu.Items.Add("Explore", GetServiceIcon(service.Kind), (_, _) => ExploreDetectedService(service));
+        menu.Items.Add("Copy path", null, (_, _) => CopyText(service.Target));
+        menu.Items.Add("Properties", null, (_, _) => ShowDetectedServiceProperties(service));
+        return menu;
     }
 
-    private ToolStripMenuItem BuildDetectedServiceMenuItem(DetectedService service)
+    private static string BuildTreeTooltip(ScanResultRow? row)
     {
-        var serviceItem = new ToolStripMenuItem(service.ToString(), GetServiceIcon(service.Kind));
-        serviceItem.DropDownItems.Add("Explore", GetServiceIcon(service.Kind), (_, _) => ExploreDetectedService(service));
-        serviceItem.DropDownItems.Add("Copy path", null, (_, _) => CopyText(service.Target));
-        serviceItem.DropDownItems.Add("Properties", null, (_, _) => ShowDetectedServiceProperties(service));
-        return serviceItem;
-    }
+        if (row?.Service is not null)
+        {
+            return row.Service.ToString();
+        }
 
-    private static string BuildDetectedTooltip(ScanResultRow? row)
-    {
         if (row?.Source?.DetectedServices.Count > 0)
         {
-            return string.Join(Environment.NewLine, row.Source.DetectedServices.Select(service => service.ToString()));
+            return "Expand detected items";
         }
 
         return "Nothing extra detected";
@@ -668,40 +693,19 @@ public sealed class MainForm : Form
         MessageBox.Show(this, details, "Detected item properties", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
-    private Image BuildDetectedSummaryIcon(ScanResultRow? row)
+    private Image GetTreeIcon(ScanResultRow? row)
     {
-        var services = row?.Source?.DetectedServices;
-        if (services is null || services.Count == 0)
+        if (row?.Service is not null)
         {
-            return _noDetectedIcon;
+            return GetServiceIcon(row.Service.Kind);
         }
 
-        var iconKinds = services
-            .Select(service => GetServiceIconKind(service.Kind))
-            .Distinct()
-            .OrderBy(kind => kind)
-            .ToArray();
-        var cacheKey = string.Join("|", iconKinds);
-
-        if (_detectedSummaryIcons.TryGetValue(cacheKey, out var cachedIcon))
+        if (row?.Source?.DetectedServices.Count > 0)
         {
-            return cachedIcon;
+            return _expandedHosts.Contains(row.IpAddress) ? _expandedIcon : _collapsedIcon;
         }
 
-        var bitmap = new Bitmap(64, 18);
-        using var graphics = Graphics.FromImage(bitmap);
-        graphics.Clear(Color.Transparent);
-        graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-
-        var x = 2;
-        foreach (var iconKind in iconKinds.Take(3))
-        {
-            graphics.DrawImage(GetServiceIcon(iconKind), x, 1, 16, 16);
-            x += 20;
-        }
-
-        _detectedSummaryIcons[cacheKey] = bitmap;
-        return bitmap;
+        return _emptyTreeIcon;
     }
 
     private Image GetServiceIcon(string kind)
@@ -732,16 +736,29 @@ public sealed class MainForm : Form
         return "generic";
     }
 
-    private static Image BuildEmptyDetectedIcon()
+    private static Image BuildEmptyTreeIcon()
     {
         var bitmap = new Bitmap(16, 16);
         using var graphics = Graphics.FromImage(bitmap);
-        using var pen = new Pen(Color.FromArgb(170, 176, 186), 1.5F);
+
+        graphics.Clear(Color.Transparent);
+        return bitmap;
+    }
+
+    private static Image BuildExpanderIcon(bool expanded)
+    {
+        var bitmap = new Bitmap(16, 16);
+        using var graphics = Graphics.FromImage(bitmap);
+        using var brush = new SolidBrush(Color.FromArgb(55, 65, 81));
 
         graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         graphics.Clear(Color.Transparent);
-        graphics.DrawEllipse(pen, 3, 3, 10, 10);
-        graphics.DrawLine(pen, 5, 5, 11, 11);
+
+        var points = expanded
+            ? new[] { new Point(4, 6), new Point(12, 6), new Point(8, 11) }
+            : new[] { new Point(6, 4), new Point(11, 8), new Point(6, 12) };
+
+        graphics.FillPolygon(brush, points);
         return bitmap;
     }
 
