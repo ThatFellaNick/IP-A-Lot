@@ -199,7 +199,7 @@ public sealed class MainForm : Form
     private MenuStrip BuildMenu()
     {
         _showAliveMenuItem = new ToolStripMenuItem("Show alive") { Checked = true, CheckOnClick = true };
-        _showDeadMenuItem = new ToolStripMenuItem("Show dead") { Checked = true, CheckOnClick = true };
+        _showDeadMenuItem = new ToolStripMenuItem("Show dead") { Checked = false, CheckOnClick = true };
         _showUnknownMenuItem = new ToolStripMenuItem("Show unknown") { Checked = true, CheckOnClick = true };
         _showDetailsMenuItem = new ToolStripMenuItem("Show details pane") { Checked = true, CheckOnClick = true };
 
