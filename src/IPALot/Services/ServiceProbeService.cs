@@ -1,0 +1,140 @@
+// -----------------------------------------------------------------------------
+// IP A Lot - lightweight network scanner
+// Copyright (c) IP A Lot contributors.
+//
+// ServiceProbeService.cs performs quick, low-touch checks for common admin
+// surfaces such as web interfaces and Windows file shares.
+// -----------------------------------------------------------------------------
+
+using System;
+using System.Collections.Generic;
+using System.Net;
+using System.Net.Sockets;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
+using IPALot.Models;
+
+namespace IPALot.Services;
+
+public sealed class ServiceProbeService
+{
+    private const int ProbeTimeoutMilliseconds = 450;
+
+    public async Task<IReadOnlyList<DetectedService>> ProbeAsync(IPAddress address, CancellationToken cancellationToken)
+    {
+        var services = new List<DetectedService>();
+        var host = address.ToString();
+
+        if (await IsTcpOpenAsync(host, 80, cancellationToken))
+        {
+            services.Add(new DetectedService("HTTP", "Web interface", $"http://{host}/", "Port 80 responded"));
+        }
+
+        if (await IsTcpOpenAsync(host, 443, cancellationToken))
+        {
+            services.Add(new DetectedService("HTTPS", "Secure web interface", $"https://{host}/", "Port 443 responded"));
+        }
+
+        if (await IsTcpOpenAsync(host, 445, cancellationToken))
+        {
+            var shares = ShareEnumerationService.GetShares(host);
+            if (shares.Count == 0)
+            {
+                services.Add(new DetectedService("Shares", "SMB detected", $@"\\{host}", "Port 445 responded"));
+            }
+            else
+            {
+                foreach (var share in shares)
+                {
+                    services.Add(new DetectedService("Shares", share, $@"\\{host}\{share}", "Share visible"));
+                }
+            }
+        }
+
+        return services;
+    }
+
+    private static async Task<bool> IsTcpOpenAsync(string host, int port, CancellationToken cancellationToken)
+    {
+        using var client = new TcpClient();
+        var connectTask = client.ConnectAsync(host, port);
+        var delayTask = Task.Delay(ProbeTimeoutMilliseconds, cancellationToken);
+        var completedTask = await Task.WhenAny(connectTask, delayTask);
+
+        if (completedTask != connectTask)
+        {
+            return false;
+        }
+
+        try
+        {
+            await connectTask;
+            return client.Connected;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+}
+
+public static class ShareEnumerationService
+{
+    public static IReadOnlyList<string> GetShares(string host)
+    {
+        var shares = new List<string>();
+        var serverName = $@"\\{host}";
+        var resumeHandle = IntPtr.Zero;
+        var result = NetShareEnum(serverName, 1, out var buffer, -1, out var entriesRead, out _, ref resumeHandle);
+
+        if (result != 0 || buffer == IntPtr.Zero)
+        {
+            return shares;
+        }
+
+        try
+        {
+            var offset = buffer;
+            var itemSize = Marshal.SizeOf(typeof(ShareInfo1));
+
+            for (var index = 0; index < entriesRead; index++)
+            {
+                var shareInfo = (ShareInfo1)Marshal.PtrToStructure(offset, typeof(ShareInfo1));
+                if (!string.IsNullOrWhiteSpace(shareInfo.NetName) && !shareInfo.NetName.EndsWith("$", StringComparison.Ordinal))
+                {
+                    shares.Add(shareInfo.NetName);
+                }
+
+                offset = IntPtr.Add(offset, itemSize);
+            }
+        }
+        finally
+        {
+            NetApiBufferFree(buffer);
+        }
+
+        return shares;
+    }
+
+    [DllImport("Netapi32.dll", CharSet = CharSet.Unicode)]
+    private static extern int NetShareEnum(
+        string serverName,
+        int level,
+        out IntPtr buffer,
+        int prefmaxlen,
+        out int entriesRead,
+        out int totalEntries,
+        ref IntPtr resumeHandle);
+
+    [DllImport("Netapi32.dll")]
+    private static extern int NetApiBufferFree(IntPtr buffer);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct ShareInfo1
+    {
+        public string NetName;
+        public uint Type;
+        public string Remark;
+    }
+}

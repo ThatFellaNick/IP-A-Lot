@@ -23,6 +23,7 @@ public sealed class NetworkScanner
     private const int MaxConcurrency = 64;
     private const int PingTimeoutMilliseconds = 900;
     private readonly OuiLookupService _ouiLookupService = new OuiLookupService();
+    private readonly ServiceProbeService _serviceProbeService = new ServiceProbeService();
 
     public async Task ScanAsync(IReadOnlyList<IPAddress> targets, IProgress<ScanProgress> progress, CancellationToken cancellationToken)
     {
@@ -60,27 +61,45 @@ public sealed class NetworkScanner
         }
         catch (PingException)
         {
-            return null;
+            return new ScanResult(
+                target,
+                ScanStatuses.Unknown,
+                hostName: null,
+                macAddress: null,
+                vendor: null,
+                roundtripTime: null,
+                notes: "Ping failed",
+                detectedServices: null);
         }
 
         if (reply.Status != IPStatus.Success)
         {
-            return null;
+            return new ScanResult(
+                target,
+                ScanStatuses.Dead,
+                hostName: null,
+                macAddress: null,
+                vendor: null,
+                roundtripTime: null,
+                notes: reply.Status.ToString(),
+                detectedServices: null);
         }
 
         var hostNameTask = ResolveHostNameAsync(target);
         var macAddress = MacAddressService.GetMacAddress(target);
         var vendor = macAddress is null ? null : _ouiLookupService.LookupVendor(macAddress);
+        var detectedServices = await _serviceProbeService.ProbeAsync(target, cancellationToken);
         var hostName = await hostNameTask;
 
         return new ScanResult(
             target,
-            isOnline: true,
+            ScanStatuses.Alive,
             hostName,
             macAddress,
             vendor,
             reply.RoundtripTime,
-            notes: BuildNotes(hostName, macAddress, vendor));
+            notes: BuildNotes(hostName, macAddress, vendor, detectedServices.Count),
+            detectedServices);
     }
 
     private static async Task<string?> ResolveHostNameAsync(IPAddress target)
@@ -96,7 +115,7 @@ public sealed class NetworkScanner
         }
     }
 
-    private static string? BuildNotes(string? hostName, string? macAddress, string? vendor)
+    private static string? BuildNotes(string? hostName, string? macAddress, string? vendor, int serviceCount)
     {
         var notes = new ConcurrentQueue<string>();
 
@@ -113,6 +132,11 @@ public sealed class NetworkScanner
         if (macAddress is not null && vendor is null)
         {
             notes.Enqueue("Vendor unknown");
+        }
+
+        if (serviceCount > 0)
+        {
+            notes.Enqueue($"{serviceCount} thing(s) answered the door");
         }
 
         return notes.IsEmpty ? null : string.Join("; ", notes);

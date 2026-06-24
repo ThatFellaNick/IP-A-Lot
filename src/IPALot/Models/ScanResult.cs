@@ -7,28 +7,40 @@
 // -----------------------------------------------------------------------------
 
 using System.Net;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace IPALot.Models
 {
     public sealed class ScanResult
     {
-        public ScanResult(IPAddress ipAddress, bool isOnline, string? hostName, string? macAddress, string? vendor, long? roundtripTime, string? notes)
+        public ScanResult(IPAddress ipAddress, string status, string? hostName, string? macAddress, string? vendor, long? roundtripTime, string? notes, IEnumerable<DetectedService>? detectedServices)
         {
             IpAddress = ipAddress;
-            IsOnline = isOnline;
+            Status = status;
             HostName = hostName;
             MacAddress = macAddress;
             Vendor = vendor;
             RoundtripTime = roundtripTime;
             Notes = notes;
+            DetectedServices = (detectedServices ?? Enumerable.Empty<DetectedService>()).ToList();
         }
 
         public IPAddress IpAddress { get; }
-        public bool IsOnline { get; }
+        public string Status { get; }
+        public bool IsOnline => Status == ScanStatuses.Alive;
         public string? HostName { get; }
         public string? MacAddress { get; }
         public string? Vendor { get; }
         public long? RoundtripTime { get; }
         public string? Notes { get; }
+        public IReadOnlyList<DetectedService> DetectedServices { get; }
+    }
+
+    public static class ScanStatuses
+    {
+        public const string Alive = "Alive";
+        public const string Dead = "Dead";
+        public const string Unknown = "Unknown";
     }
 }
