@@ -21,4 +21,9 @@
     <InformationalVersion>0.1.0</InformationalVersion>
     <NeutralLanguage>en-US</NeutralLanguage>
   </PropertyGroup>
+  <ItemGroup>
+    <Content Include="Data\oui.csv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>

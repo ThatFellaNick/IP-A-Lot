@@ -43,23 +43,34 @@ public sealed class OuiLookupService
             ["00155D"] = "Microsoft",
             ["001C42"] = "Parallels",
             ["005056"] = "VMware",
+            ["001565"] = "XIAMEN YEALINK NETWORK TECHNOLOGY CO.,LTD",
             ["080027"] = "PCS Systemtechnik / VirtualBox",
             ["0A0027"] = "VirtualBox",
+            ["249AD8"] = "YEALINK(XIAMEN) NETWORK TECHNOLOGY CO.,LTD.",
+            ["3497D7"] = "YEALINK(XIAMEN) NETWORK TECHNOLOGY CO.,LTD.",
             ["3C5A37"] = "Samsung",
             ["3C7C3F"] = "Apple",
             ["40B034"] = "Hewlett Packard",
+            ["44DBD2"] = "YEALINK(XIAMEN) NETWORK TECHNOLOGY CO.,LTD.",
             ["44A842"] = "Dell",
             ["50EBF6"] = "ASUSTek",
             ["5C514F"] = "Intel Corporate",
+            ["644F56"] = "YEALINK(XIAMEN) NETWORK TECHNOLOGY CO.,LTD.",
             ["6C2B59"] = "Dell",
             ["74867A"] = "Dell",
             ["7845C4"] = "Dell",
+            ["805E0C"] = "YEALINK(XIAMEN) NETWORK TECHNOLOGY CO.,LTD.",
+            ["805EC0"] = "YEALINK(XIAMEN) NETWORK TECHNOLOGY CO.,LTD.",
             ["84A93E"] = "Microsoft",
             ["8C1645"] = "Cisco",
             ["A0369F"] = "Intel Corporate",
+            ["B061A9"] = "YEALINK(XIAMEN) NETWORK TECHNOLOGY CO.,LTD.",
             ["B827EB"] = "Raspberry Pi Foundation",
             ["BC2411"] = "Cisco",
+            ["C4FC22"] = "YEALINK(XIAMEN) NETWORK TECHNOLOGY CO.,LTD.",
             ["D4BED9"] = "Dell",
+            ["EC1DA9"] = "YEALINK(XIAMEN) NETWORK TECHNOLOGY CO.,LTD.",
+            ["F01653"] = "YEALINK(XIAMEN) NETWORK TECHNOLOGY CO.,LTD.",
             ["F0D5BF"] = "Intel Corporate",
             ["F8CAB8"] = "Dell",
         };
@@ -67,7 +78,7 @@ public sealed class OuiLookupService
 
     private static void LoadExternalCsv(Dictionary<string, string> vendors)
     {
-        var csvPath = Path.Combine(AppContext.BaseDirectory, "oui.csv");
+        var csvPath = GetExternalCsvPath();
         if (!File.Exists(csvPath))
         {
             return;
@@ -87,6 +98,18 @@ public sealed class OuiLookupService
                 vendors[prefix] = parts[1];
             }
         }
+    }
+
+    private static string GetExternalCsvPath()
+    {
+        var basePath = AppContext.BaseDirectory;
+        var rootCsvPath = Path.Combine(basePath, "oui.csv");
+        if (File.Exists(rootCsvPath))
+        {
+            return rootCsvPath;
+        }
+
+        return Path.Combine(basePath, "Data", "oui.csv");
     }
 
     private static string? NormalizePrefix(string value)
