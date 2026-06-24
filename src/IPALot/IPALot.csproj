@@ -22,8 +22,6 @@
     <NeutralLanguage>en-US</NeutralLanguage>
   </PropertyGroup>
   <ItemGroup>
-    <Content Include="Data\oui.csv">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <EmbeddedResource Include="Data\oui.csv" LogicalName="IPALot.Data.oui.csv" />
   </ItemGroup>
 </Project>

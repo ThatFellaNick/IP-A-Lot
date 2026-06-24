@@ -3,14 +3,15 @@
 // Copyright (c) IP A Lot contributors.
 //
 // OuiLookupService.cs resolves MAC prefixes to vendor names. A compact built-in
-// table covers common hardware, and an optional oui.csv next to the executable
-// can extend coverage without changing the app.
+// table covers common hardware, and the full bundled OUI CSV is embedded in the
+// executable so the scanner remains portable as a single file.
 // -----------------------------------------------------------------------------
 
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 
 namespace IPALot.Services;
 
@@ -21,7 +22,7 @@ public sealed class OuiLookupService
     public OuiLookupService()
     {
         _vendors = LoadBuiltInVendors();
-        LoadExternalCsv(_vendors);
+        LoadEmbeddedCsv(_vendors);
     }
 
     public string? LookupVendor(string macAddress)
@@ -76,40 +77,40 @@ public sealed class OuiLookupService
         };
     }
 
-    private static void LoadExternalCsv(Dictionary<string, string> vendors)
+    private static void LoadEmbeddedCsv(Dictionary<string, string> vendors)
     {
-        var csvPath = GetExternalCsvPath();
-        if (!File.Exists(csvPath))
+        using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("IPALot.Data.oui.csv");
+        if (stream is null)
         {
             return;
         }
 
-        foreach (var line in File.ReadLines(csvPath))
+        using var reader = new StreamReader(stream);
+        while (!reader.EndOfStream)
         {
-            var parts = line.Split(new[] { ',' }, 2).Select(part => part.Trim()).ToArray();
-            if (parts.Length != 2)
-            {
-                continue;
-            }
-
-            var prefix = NormalizePrefix(parts[0]);
-            if (prefix is not null && !string.IsNullOrWhiteSpace(parts[1]))
-            {
-                vendors[prefix] = parts[1];
-            }
+            AddCsvLine(vendors, reader.ReadLine());
         }
     }
 
-    private static string GetExternalCsvPath()
+    private static void AddCsvLine(Dictionary<string, string> vendors, string? line)
     {
-        var basePath = AppContext.BaseDirectory;
-        var rootCsvPath = Path.Combine(basePath, "oui.csv");
-        if (File.Exists(rootCsvPath))
+        if (string.IsNullOrWhiteSpace(line))
         {
-            return rootCsvPath;
+            return;
         }
 
-        return Path.Combine(basePath, "Data", "oui.csv");
+        var csvLine = line!;
+        var parts = csvLine.Split(new[] { ',' }, 2).Select(part => part.Trim()).ToArray();
+        if (parts.Length != 2)
+        {
+            return;
+        }
+
+        var prefix = NormalizePrefix(parts[0]);
+        if (prefix is not null && !string.IsNullOrWhiteSpace(parts[1]))
+        {
+            vendors[prefix] = parts[1];
+        }
     }
 
     private static string? NormalizePrefix(string value)
