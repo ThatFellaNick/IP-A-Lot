@@ -32,8 +32,11 @@ public sealed class MainForm : Form
     private readonly TreeView _detailsTree = new();
     private readonly BindingSource _resultsSource = new();
     private readonly System.Windows.Forms.Timer _scanRefreshTimer = new();
-    private readonly Image _detectedIcon = SystemIcons.Information.ToBitmap();
+    private readonly Image _shareDetectedIcon = BuildShareDetectedIcon();
+    private readonly Image _webDetectedIcon = BuildWebDetectedIcon();
+    private readonly Image _genericDetectedIcon = SystemIcons.Information.ToBitmap();
     private readonly Image _noDetectedIcon = BuildEmptyDetectedIcon();
+    private readonly Dictionary<string, Image> _detectedSummaryIcons = new Dictionary<string, Image>();
     private readonly List<ScanResultRow> _results = new List<ScanResultRow>();
     private readonly List<ScanResultRow> _visibleResults = new List<ScanResultRow>();
     private bool _viewRefreshPending;
@@ -273,8 +276,8 @@ public sealed class MainForm : Form
         {
             Name = "DetectedIcon",
             HeaderText = "Detected",
-            Width = 72,
-            ImageLayout = DataGridViewImageCellLayout.Zoom,
+            Width = 92,
+            ImageLayout = DataGridViewImageCellLayout.Normal,
             ToolTipText = "Detected items",
         });
         AddGridColumn(nameof(ScanResultRow.RoundtripTime), "Ping", 80);
@@ -560,7 +563,7 @@ public sealed class MainForm : Form
         }
 
         var row = _resultsGrid.Rows[e.RowIndex].DataBoundItem as ScanResultRow;
-        e.Value = row?.Source?.DetectedServices.Count > 0 ? _detectedIcon : _noDetectedIcon;
+        e.Value = BuildDetectedSummaryIcon(row);
         e.FormattingApplied = true;
     }
 
@@ -600,7 +603,7 @@ public sealed class MainForm : Form
         {
             foreach (var service in row.Source.DetectedServices)
             {
-                menu.Items.Add(service.ToString(), null, (_, _) => CopyText(service.Target));
+                menu.Items.Add(service.ToString(), GetServiceIcon(service.Kind), (_, _) => CopyText(service.Target));
             }
         }
         else
@@ -622,6 +625,70 @@ public sealed class MainForm : Form
         return "Nothing extra detected";
     }
 
+    private Image BuildDetectedSummaryIcon(ScanResultRow? row)
+    {
+        var services = row?.Source?.DetectedServices;
+        if (services is null || services.Count == 0)
+        {
+            return _noDetectedIcon;
+        }
+
+        var iconKinds = services
+            .Select(service => GetServiceIconKind(service.Kind))
+            .Distinct()
+            .OrderBy(kind => kind)
+            .ToArray();
+        var cacheKey = string.Join("|", iconKinds);
+
+        if (_detectedSummaryIcons.TryGetValue(cacheKey, out var cachedIcon))
+        {
+            return cachedIcon;
+        }
+
+        var bitmap = new Bitmap(64, 18);
+        using var graphics = Graphics.FromImage(bitmap);
+        graphics.Clear(Color.Transparent);
+        graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+
+        var x = 2;
+        foreach (var iconKind in iconKinds.Take(3))
+        {
+            graphics.DrawImage(GetServiceIcon(iconKind), x, 1, 16, 16);
+            x += 20;
+        }
+
+        _detectedSummaryIcons[cacheKey] = bitmap;
+        return bitmap;
+    }
+
+    private Image GetServiceIcon(string kind)
+    {
+        return GetServiceIconKind(kind) switch
+        {
+            "shares" => _shareDetectedIcon,
+            "web" => _webDetectedIcon,
+            _ => _genericDetectedIcon,
+        };
+    }
+
+    private static string GetServiceIconKind(string kind)
+    {
+        if (kind.Equals("Shares", StringComparison.OrdinalIgnoreCase)
+            || kind.Equals("shares", StringComparison.OrdinalIgnoreCase))
+        {
+            return "shares";
+        }
+
+        if (kind.Equals("HTTP", StringComparison.OrdinalIgnoreCase)
+            || kind.Equals("HTTPS", StringComparison.OrdinalIgnoreCase)
+            || kind.Equals("web", StringComparison.OrdinalIgnoreCase))
+        {
+            return "web";
+        }
+
+        return "generic";
+    }
+
     private static Image BuildEmptyDetectedIcon()
     {
         var bitmap = new Bitmap(16, 16);
@@ -632,6 +699,42 @@ public sealed class MainForm : Form
         graphics.Clear(Color.Transparent);
         graphics.DrawEllipse(pen, 3, 3, 10, 10);
         graphics.DrawLine(pen, 5, 5, 11, 11);
+        return bitmap;
+    }
+
+    private static Image BuildShareDetectedIcon()
+    {
+        var bitmap = new Bitmap(16, 16);
+        using var graphics = Graphics.FromImage(bitmap);
+        using var borderPen = new Pen(Color.FromArgb(136, 96, 18));
+        using var tabBrush = new SolidBrush(Color.FromArgb(249, 206, 97));
+        using var bodyBrush = new SolidBrush(Color.FromArgb(255, 225, 128));
+
+        graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        graphics.Clear(Color.Transparent);
+        graphics.FillRectangle(tabBrush, 2, 4, 5, 3);
+        graphics.FillRectangle(bodyBrush, 2, 6, 12, 8);
+        graphics.DrawRectangle(borderPen, 2, 5, 12, 9);
+        graphics.DrawLine(borderPen, 2, 6, 14, 6);
+        return bitmap;
+    }
+
+    private static Image BuildWebDetectedIcon()
+    {
+        var bitmap = new Bitmap(16, 16);
+        using var graphics = Graphics.FromImage(bitmap);
+        using var borderPen = new Pen(Color.FromArgb(36, 100, 168));
+        using var linePen = new Pen(Color.FromArgb(89, 151, 214));
+        using var fillBrush = new SolidBrush(Color.FromArgb(218, 238, 255));
+
+        graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        graphics.Clear(Color.Transparent);
+        graphics.FillEllipse(fillBrush, 2, 2, 12, 12);
+        graphics.DrawEllipse(borderPen, 2, 2, 12, 12);
+        graphics.DrawLine(linePen, 8, 2, 8, 14);
+        graphics.DrawArc(linePen, 4, 2, 8, 12, 90, 180);
+        graphics.DrawArc(linePen, 4, 2, 8, 12, -90, 180);
+        graphics.DrawLine(linePen, 3, 8, 13, 8);
         return bitmap;
     }
 
