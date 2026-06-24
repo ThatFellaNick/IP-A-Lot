@@ -25,6 +25,10 @@ namespace IPALot;
 
 public sealed class MainForm : Form
 {
+    private const int WindowsMessageVerticalScroll = 0x0115;
+    private const int ScrollLineUp = 0;
+    private const int ScrollLineDown = 1;
+
     // Taglines are intentionally kept in code so the single executable remains
     // portable and does not need a sidecar text/resource file at runtime.
     private static readonly string[] Taglines =
@@ -617,6 +621,9 @@ public sealed class MainForm : Form
     {
         _detailsTree.Dock = DockStyle.Fill;
         _detailsTree.HideSelection = false;
+        _detailsTree.MouseEnter += (_, _) => _detailsTree.Focus();
+        _detailsTree.MouseDown += (_, _) => _detailsTree.Focus();
+        _detailsTree.MouseWheel += DetailsTree_MouseWheel;
         _detailsTree.Nodes.Add("Select a result to inspect detected things.");
     }
 
@@ -842,6 +849,25 @@ public sealed class MainForm : Form
         if (targetRow != firstRow)
         {
             _resultsGrid.FirstDisplayedScrollingRowIndex = targetRow;
+        }
+    }
+
+    private void DetailsTree_MouseWheel(object? sender, MouseEventArgs e)
+    {
+        if (_detailsTree.Nodes.Count == 0 || e.Delta == 0)
+        {
+            return;
+        }
+
+        // TreeView does not expose FirstDisplayedScrollingRowIndex like the
+        // results grid. Sending line-scroll messages gives backstage sessions a
+        // deterministic fallback when normal wheel focus is unreliable.
+        var lines = Math.Max(1, SystemInformation.MouseWheelScrollLines);
+        var scrollCommand = e.Delta > 0 ? ScrollLineUp : ScrollLineDown;
+
+        for (var index = 0; index < lines; index++)
+        {
+            SendMessage(_detailsTree.Handle, WindowsMessageVerticalScroll, (IntPtr)scrollCommand, IntPtr.Zero);
         }
     }
 
@@ -1148,4 +1174,7 @@ public sealed class MainForm : Form
             .GetProperty("DoubleBuffered", BindingFlags.Instance | BindingFlags.NonPublic)
             ?.SetValue(control, true, null);
     }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr handle, int message, IntPtr wParam, IntPtr lParam);
 }
