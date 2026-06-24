@@ -13,6 +13,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Net;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -109,6 +110,7 @@ public sealed class MainForm : Form
     private readonly DataGridView _resultsGrid = new();
     private readonly TreeView _detailsTree = new();
     private readonly BindingSource _resultsSource = new();
+    private readonly PictureBox _logoBox = new();
     private readonly System.Windows.Forms.Timer _scanRefreshTimer = new();
     private readonly Image _shareDetectedIcon = BuildShareDetectedIcon();
     private readonly Image _webDetectedIcon = BuildWebDetectedIcon();
@@ -155,6 +157,12 @@ public sealed class MainForm : Form
     private static string PickTagline()
     {
         return Taglines[TaglineRandom.Next(Taglines.Length)];
+    }
+
+    private static Image? LoadHeaderLogo()
+    {
+        using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("IPALot.Assets.logo.png");
+        return stream is null ? null : Image.FromStream(stream);
     }
 
     private void BuildLayout()
@@ -241,17 +249,33 @@ public sealed class MainForm : Form
         header.Controls.Add(_stopButton, 3, 0);
         header.Controls.Add(clearButton, 4, 0);
 
+        _logoBox.Image = LoadHeaderLogo();
+        _logoBox.SizeMode = PictureBoxSizeMode.Zoom;
+        _logoBox.Dock = DockStyle.Fill;
+        _logoBox.Margin = new Padding(8, 0, 0, 8);
+
+        var textStack = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            AutoSize = true,
+        };
+        textStack.Controls.Add(title);
+        textStack.Controls.Add(subtitle);
+        textStack.Controls.Add(examples);
+        textStack.Controls.Add(header);
+
         var topStack = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            ColumnCount = 1,
+            ColumnCount = 2,
             AutoSize = true,
             Margin = new Padding(0, 0, 0, 12),
         };
-        topStack.Controls.Add(title);
-        topStack.Controls.Add(subtitle);
-        topStack.Controls.Add(examples);
-        topStack.Controls.Add(header);
+        topStack.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        topStack.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96));
+        topStack.Controls.Add(textStack, 0, 0);
+        topStack.Controls.Add(_logoBox, 1, 0);
 
         ConfigureResultsGrid();
         ConfigureDetailsTree();
