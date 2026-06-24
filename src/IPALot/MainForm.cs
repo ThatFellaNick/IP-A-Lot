@@ -51,6 +51,7 @@ public sealed class MainForm : Form
     public MainForm()
     {
         Text = "IP A Lot";
+        Icon = LoadWindowIcon();
         MinimumSize = new Size(980, 620);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.FromArgb(246, 247, 249);
@@ -59,6 +60,13 @@ public sealed class MainForm : Form
         BuildLayout();
         ConfigureScanRefreshTimer();
         Load += (_, _) => PrefillDetectedNetworks();
+    }
+
+    private static Icon? LoadWindowIcon()
+    {
+        // WinForms does not always apply the executable icon to the form/taskbar,
+        // so the main window explicitly reuses the icon embedded in the app.
+        return Icon.ExtractAssociatedIcon(Application.ExecutablePath);
     }
 
     private void BuildLayout()
