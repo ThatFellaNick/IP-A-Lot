@@ -173,13 +173,21 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 4,
-            Padding = new Padding(14),
+            RowCount = 2,
         };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        var content = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+            Padding = new Padding(14),
+        };
+        content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var header = new TableLayoutPanel
         {
@@ -313,10 +321,12 @@ public sealed class MainForm : Form
         footer.Controls.Add(_statusLabel, 0, 0);
         footer.Controls.Add(_progressBar, 1, 0);
 
+        content.Controls.Add(topStack, 0, 0);
+        content.Controls.Add(body, 0, 1);
+        content.Controls.Add(footer, 0, 2);
+
         root.Controls.Add(MainMenuStrip, 0, 0);
-        root.Controls.Add(topStack, 0, 1);
-        root.Controls.Add(body, 0, 2);
-        root.Controls.Add(footer, 0, 3);
+        root.Controls.Add(content, 0, 1);
 
         Controls.Add(root);
     }
