@@ -135,7 +135,7 @@ public sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "IP A Lot";
+        Text = "IP A Lot - IP Scanner";
         Icon = LoadWindowIcon();
         MinimumSize = new Size(980, 620);
         StartPosition = FormStartPosition.CenterScreen;
@@ -203,7 +203,7 @@ public sealed class MainForm : Form
 
         var title = new Label
         {
-            Text = "IP A Lot",
+            Text = "IP A Lot - IP Scanner",
             AutoSize = true,
             Font = new Font(Font.FontFamily, 18F, FontStyle.Bold),
             ForeColor = Color.FromArgb(32, 38, 46),
