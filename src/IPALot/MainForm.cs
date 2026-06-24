@@ -9,6 +9,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Net;
@@ -611,7 +612,7 @@ public sealed class MainForm : Form
         {
             foreach (var service in row.Source.DetectedServices)
             {
-                menu.Items.Add(service.ToString(), GetServiceIcon(service.Kind), (_, _) => CopyText(service.Target));
+                menu.Items.Add(BuildDetectedServiceMenuItem(service));
             }
         }
         else
@@ -623,6 +624,15 @@ public sealed class MainForm : Form
         menu.Show(_resultsGrid, cellRectangle.Left, cellRectangle.Bottom);
     }
 
+    private ToolStripMenuItem BuildDetectedServiceMenuItem(DetectedService service)
+    {
+        var serviceItem = new ToolStripMenuItem(service.ToString(), GetServiceIcon(service.Kind));
+        serviceItem.DropDownItems.Add("Explore", GetServiceIcon(service.Kind), (_, _) => ExploreDetectedService(service));
+        serviceItem.DropDownItems.Add("Copy path", null, (_, _) => CopyText(service.Target));
+        serviceItem.DropDownItems.Add("Properties", null, (_, _) => ShowDetectedServiceProperties(service));
+        return serviceItem;
+    }
+
     private static string BuildDetectedTooltip(ScanResultRow? row)
     {
         if (row?.Source?.DetectedServices.Count > 0)
@@ -631,6 +641,31 @@ public sealed class MainForm : Form
         }
 
         return "Nothing extra detected";
+    }
+
+    private void ExploreDetectedService(DetectedService service)
+    {
+        try
+        {
+            Process.Start(service.Target);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Could not open detected item", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private void ShowDetectedServiceProperties(DetectedService service)
+    {
+        var details = string.Join(Environment.NewLine, new[]
+        {
+            $"Type: {service.Kind}",
+            $"Name: {service.Name}",
+            $"Path: {service.Target}",
+            $"Notes: {service.Notes}",
+        });
+
+        MessageBox.Show(this, details, "Detected item properties", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private Image BuildDetectedSummaryIcon(ScanResultRow? row)
