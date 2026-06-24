@@ -203,6 +203,23 @@ public sealed class MainForm : Form
         _showUnknownMenuItem.CheckedChanged += (_, _) => ApplyView();
         _showDetailsMenuItem.CheckedChanged += (_, _) => _detailsTree.Parent!.Visible = _showDetailsMenuItem.Checked;
 
+        var exportMenu = new ToolStripMenuItem("Export");
+        exportMenu.DropDownItems.AddRange(new ToolStripItem[]
+        {
+            new ToolStripMenuItem("HTML...", null, (_, _) => ExportVisibleResults(ExportFormat.Html)),
+            new ToolStripMenuItem("CSV...", null, (_, _) => ExportVisibleResults(ExportFormat.Csv)),
+            new ToolStripMenuItem("JSON...", null, (_, _) => ExportVisibleResults(ExportFormat.Json)),
+            new ToolStripMenuItem("XML...", null, (_, _) => ExportVisibleResults(ExportFormat.Xml)),
+        });
+
+        var fileMenu = new ToolStripMenuItem("File");
+        fileMenu.DropDownItems.AddRange(new ToolStripItem[]
+        {
+            exportMenu,
+            new ToolStripSeparator(),
+            new ToolStripMenuItem("Quit", null, (_, _) => Close()),
+        });
+
         var expandAll = new ToolStripMenuItem("Expand all", null, (_, _) => _detailsTree.ExpandAll());
         var collapseAll = new ToolStripMenuItem("Collapse all", null, (_, _) => _detailsTree.CollapseAll());
         var viewMenu = new ToolStripMenuItem("View");
@@ -218,19 +235,10 @@ public sealed class MainForm : Form
             _showDetailsMenuItem,
         });
 
-        var exportMenu = new ToolStripMenuItem("Export");
-        exportMenu.DropDownItems.AddRange(new ToolStripItem[]
-        {
-            new ToolStripMenuItem("HTML...", null, (_, _) => ExportVisibleResults(ExportFormat.Html)),
-            new ToolStripMenuItem("CSV...", null, (_, _) => ExportVisibleResults(ExportFormat.Csv)),
-            new ToolStripMenuItem("JSON...", null, (_, _) => ExportVisibleResults(ExportFormat.Json)),
-            new ToolStripMenuItem("XML...", null, (_, _) => ExportVisibleResults(ExportFormat.Xml)),
-        });
-
         return new MenuStrip
         {
             Dock = DockStyle.Top,
-            Items = { viewMenu, exportMenu },
+            Items = { fileMenu, viewMenu },
         };
     }
 
