@@ -32,6 +32,8 @@ public sealed class MainForm : Form
     private readonly TreeView _detailsTree = new();
     private readonly BindingSource _resultsSource = new();
     private readonly System.Windows.Forms.Timer _scanRefreshTimer = new();
+    private readonly Image _detectedIcon = SystemIcons.Information.ToBitmap();
+    private readonly Image _noDetectedIcon = BuildEmptyDetectedIcon();
     private readonly List<ScanResultRow> _results = new List<ScanResultRow>();
     private readonly List<ScanResultRow> _visibleResults = new List<ScanResultRow>();
     private bool _viewRefreshPending;
@@ -267,17 +269,20 @@ public sealed class MainForm : Form
         AddGridColumn(nameof(ScanResultRow.HostName), "Host Name", 220);
         AddGridColumn(nameof(ScanResultRow.MacAddress), "MAC", 150);
         AddGridColumn(nameof(ScanResultRow.Vendor), "Vendor", 190);
-        _resultsGrid.Columns.Add(new DataGridViewButtonColumn
+        _resultsGrid.Columns.Add(new DataGridViewImageColumn
         {
-            DataPropertyName = nameof(ScanResultRow.Detected),
+            Name = "DetectedIcon",
             HeaderText = "Detected",
-            Text = "",
-            Width = 110,
+            Width = 72,
+            ImageLayout = DataGridViewImageCellLayout.Zoom,
+            ToolTipText = "Detected items",
         });
         AddGridColumn(nameof(ScanResultRow.RoundtripTime), "Ping", 80);
         AddGridColumn(nameof(ScanResultRow.Notes), "Notes", 260, DataGridViewAutoSizeColumnMode.Fill);
 
         _resultsGrid.CellContentClick += ResultsGrid_CellContentClick;
+        _resultsGrid.CellFormatting += ResultsGrid_CellFormatting;
+        _resultsGrid.CellToolTipTextNeeded += ResultsGrid_CellToolTipTextNeeded;
         _resultsGrid.CellMouseDown += ResultsGrid_CellMouseDown;
         _resultsGrid.SelectionChanged += (_, _) => UpdateDetailsPane(GetSelectedRow());
     }
@@ -538,13 +543,36 @@ public sealed class MainForm : Form
 
     private void ResultsGrid_CellContentClick(object? sender, DataGridViewCellEventArgs e)
     {
-        if (e.RowIndex < 0 || _resultsGrid.Columns[e.ColumnIndex].HeaderText != "Detected")
+        if (e.RowIndex < 0 || _resultsGrid.Columns[e.ColumnIndex].Name != "DetectedIcon")
         {
             return;
         }
 
         var row = _resultsGrid.Rows[e.RowIndex].DataBoundItem as ScanResultRow;
         ShowDetectedDropdown(row, e.ColumnIndex, e.RowIndex);
+    }
+
+    private void ResultsGrid_CellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
+    {
+        if (e.RowIndex < 0 || _resultsGrid.Columns[e.ColumnIndex].Name != "DetectedIcon")
+        {
+            return;
+        }
+
+        var row = _resultsGrid.Rows[e.RowIndex].DataBoundItem as ScanResultRow;
+        e.Value = row?.Source?.DetectedServices.Count > 0 ? _detectedIcon : _noDetectedIcon;
+        e.FormattingApplied = true;
+    }
+
+    private void ResultsGrid_CellToolTipTextNeeded(object? sender, DataGridViewCellToolTipTextNeededEventArgs e)
+    {
+        if (e.RowIndex < 0 || _resultsGrid.Columns[e.ColumnIndex].Name != "DetectedIcon")
+        {
+            return;
+        }
+
+        var row = _resultsGrid.Rows[e.RowIndex].DataBoundItem as ScanResultRow;
+        e.ToolTipText = BuildDetectedTooltip(row);
     }
 
     private void ResultsGrid_CellMouseDown(object? sender, DataGridViewCellMouseEventArgs e)
@@ -582,6 +610,29 @@ public sealed class MainForm : Form
 
         var cellRectangle = _resultsGrid.GetCellDisplayRectangle(columnIndex, rowIndex, true);
         menu.Show(_resultsGrid, cellRectangle.Left, cellRectangle.Bottom);
+    }
+
+    private static string BuildDetectedTooltip(ScanResultRow? row)
+    {
+        if (row?.Source?.DetectedServices.Count > 0)
+        {
+            return string.Join(Environment.NewLine, row.Source.DetectedServices.Select(service => service.ToString()));
+        }
+
+        return "Nothing extra detected";
+    }
+
+    private static Image BuildEmptyDetectedIcon()
+    {
+        var bitmap = new Bitmap(16, 16);
+        using var graphics = Graphics.FromImage(bitmap);
+        using var pen = new Pen(Color.FromArgb(170, 176, 186), 1.5F);
+
+        graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        graphics.Clear(Color.Transparent);
+        graphics.DrawEllipse(pen, 3, 3, 10, 10);
+        graphics.DrawLine(pen, 5, 5, 11, 11);
+        return bitmap;
     }
 
     private static ContextMenuStrip BuildCopyMenu(ScanResultRow row)
