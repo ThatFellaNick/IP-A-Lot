@@ -28,22 +28,23 @@ public sealed class NetworkScanner
     public async Task ScanAsync(IReadOnlyList<IPAddress> targets, IProgress<ScanProgress> progress, CancellationToken cancellationToken)
     {
         var completed = 0;
-        using var throttle = new SemaphoreSlim(MaxConcurrency);
-        var scanTasks = targets.Select(async target =>
-        {
-            await throttle.WaitAsync(cancellationToken);
+        var targetQueue = new ConcurrentQueue<IPAddress>(targets);
+        var workerCount = Math.Min(MaxConcurrency, targets.Count);
 
-            try
+        var scanTasks = Enumerable.Range(0, workerCount).Select(_ => Task.Run(async () =>
+        {
+            while (!cancellationToken.IsCancellationRequested && targetQueue.TryDequeue(out var target))
             {
                 var result = await ScanOneAsync(target, cancellationToken);
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
                 var currentCompleted = Interlocked.Increment(ref completed);
                 progress.Report(new ScanProgress(currentCompleted, targets.Count, result));
             }
-            finally
-            {
-                throttle.Release();
-            }
-        }).ToArray();
+        }, cancellationToken)).ToArray();
 
         await Task.WhenAll(scanTasks);
     }
@@ -57,7 +58,10 @@ public sealed class NetworkScanner
 
         try
         {
-            reply = await ping.SendPingAsync(target, PingTimeoutMilliseconds);
+            var pingTask = ping.SendPingAsync(target, PingTimeoutMilliseconds);
+            var completedTask = await Task.WhenAny(pingTask, Task.Delay(Timeout.Infinite, cancellationToken));
+            cancellationToken.ThrowIfCancellationRequested();
+            reply = await pingTask;
         }
         catch (PingException)
         {
@@ -89,6 +93,7 @@ public sealed class NetworkScanner
         var macAddress = MacAddressService.GetMacAddress(target);
         var vendor = macAddress is null ? null : _ouiLookupService.LookupVendor(macAddress);
         var detectedServices = await _serviceProbeService.ProbeAsync(target, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         var hostName = await hostNameTask;
 
         return new ScanResult(

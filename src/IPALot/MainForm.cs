@@ -120,7 +120,7 @@ public sealed class MainForm : Form
         _stopButton.AutoSize = true;
         _stopButton.Enabled = false;
         _stopButton.Margin = new Padding(0, 0, 8, 0);
-        _stopButton.Click += (_, _) => _scanCancellation?.Cancel();
+        _stopButton.Click += (_, _) => StopScan();
 
         var clearButton = new Button
         {
@@ -362,8 +362,22 @@ public sealed class MainForm : Form
     {
         _scanButton.Enabled = !scanning;
         _stopButton.Enabled = scanning;
+        _stopButton.Text = "Stop";
         _rangeInput.Enabled = !scanning;
         _progressBar.Value = 0;
+    }
+
+    private void StopScan()
+    {
+        if (_scanCancellation is null || _scanCancellation.IsCancellationRequested)
+        {
+            return;
+        }
+
+        _statusLabel.Text = "Stopping scan...";
+        _stopButton.Enabled = false;
+        _stopButton.Text = "Stopping";
+        _scanCancellation.Cancel();
     }
 
     private void ClearResults()
