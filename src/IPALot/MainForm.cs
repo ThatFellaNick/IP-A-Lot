@@ -203,6 +203,7 @@ public sealed class MainForm : Form
             ColumnCount = 5,
             AutoSize = true,
         };
+        header.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 210));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -241,22 +242,15 @@ public sealed class MainForm : Form
         _searchInput.Margin = new Padding(0, 0, 8, 0);
         _searchInput.TextChanged += (_, _) => ApplyView();
 
-        _scanButton.Text = "Scan";
-        _scanButton.AutoSize = true;
-        _scanButton.Margin = new Padding(0, 0, 8, 0);
+        ConfigureHeaderButton(_scanButton, "Scan", rightMargin: 8);
         _scanButton.Click += async (_, _) => await StartScanAsync();
 
-        _stopButton.Text = "Stop";
-        _stopButton.AutoSize = true;
+        ConfigureHeaderButton(_stopButton, "Stop", rightMargin: 8);
         _stopButton.Enabled = false;
-        _stopButton.Margin = new Padding(0, 0, 8, 0);
         _stopButton.Click += (_, _) => StopScan();
 
-        var clearButton = new Button
-        {
-            Text = "Clear",
-            AutoSize = true,
-        };
+        var clearButton = new Button();
+        ConfigureHeaderButton(clearButton, "Clear", rightMargin: 0);
         clearButton.Click += (_, _) => ClearResults();
 
         header.Controls.Add(_rangeInput, 0, 0);
@@ -336,6 +330,18 @@ public sealed class MainForm : Form
         root.Controls.Add(content, 0, 1);
 
         Controls.Add(root);
+    }
+
+    private static void ConfigureHeaderButton(Button button, string text, int rightMargin)
+    {
+        // Fixed dimensions keep classic/remote themes from giving one action
+        // button a different baseline than the others.
+        button.Text = text;
+        button.AutoSize = false;
+        button.Size = new Size(74, 24);
+        button.MinimumSize = button.Size;
+        button.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+        button.Margin = new Padding(0, 0, rightMargin, 0);
     }
 
     private MenuStrip BuildMenu()
