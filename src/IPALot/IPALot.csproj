@@ -6,8 +6,19 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ApplicationIcon>ip-a-lot.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>IP A Lot</AssemblyName>
     <RootNamespace>IPALot</RootNamespace>
     <GenerateSupportedRuntime>false</GenerateSupportedRuntime>
+    <AssemblyTitle>IP A Lot</AssemblyTitle>
+    <Product>IP A Lot</Product>
+    <Description>Lightweight LAN inventory and IP scanner for Windows administrators.</Description>
+    <Company>ThatFellaNick</Company>
+    <Authors>ThatFellaNick</Authors>
+    <Copyright>Copyright © ThatFellaNick</Copyright>
+    <Version>0.1.0</Version>
+    <FileVersion>0.1.0.0</FileVersion>
+    <InformationalVersion>0.1.0</InformationalVersion>
+    <NeutralLanguage>en-US</NeutralLanguage>
   </PropertyGroup>
 </Project>
