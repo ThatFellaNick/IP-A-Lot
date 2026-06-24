@@ -729,7 +729,7 @@ public sealed class MainForm : Form
     {
         if (row?.Service is not null)
         {
-            return GetServiceIcon(row.Service.Kind);
+            return _emptyTreeIcon;
         }
 
         if (row?.Source?.DetectedServices.Count > 0)
