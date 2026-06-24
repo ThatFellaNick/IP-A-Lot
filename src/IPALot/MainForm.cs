@@ -17,6 +17,7 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using IPALot.Controls;
 using IPALot.Models;
 using IPALot.Services;
 
@@ -108,7 +109,7 @@ public sealed class MainForm : Form
     private readonly Button _scanButton = new();
     private readonly Button _stopButton = new();
     private readonly Label _statusLabel = new();
-    private readonly ProgressBar _progressBar = new();
+    private readonly SmoothProgressBar _progressBar = new();
     private readonly DataGridView _resultsGrid = new();
     private readonly TreeView _detailsTree = new();
     private readonly BindingSource _resultsSource = new();
@@ -143,6 +144,7 @@ public sealed class MainForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.FromArgb(246, 247, 249);
         Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
+        DoubleBuffered = true;
 
         BuildLayout();
         ConfigureScanRefreshTimer();
@@ -322,7 +324,6 @@ public sealed class MainForm : Form
         _statusLabel.Anchor = AnchorStyles.Left;
 
         _progressBar.Dock = DockStyle.Fill;
-        _progressBar.Style = ProgressBarStyle.Continuous;
 
         footer.Controls.Add(_statusLabel, 0, 0);
         footer.Controls.Add(_progressBar, 1, 0);
@@ -392,15 +393,18 @@ public sealed class MainForm : Form
     {
         // The first image column behaves like a tiny tree expander. Service
         // detections are inserted as normal child rows when a host is expanded.
+        EnableDoubleBuffering(_resultsGrid);
         _resultsGrid.Dock = DockStyle.Fill;
         _resultsGrid.AllowUserToAddRows = false;
         _resultsGrid.AllowUserToDeleteRows = false;
         _resultsGrid.AllowUserToResizeRows = false;
         _resultsGrid.AutoGenerateColumns = false;
+        _resultsGrid.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None;
         _resultsGrid.BackgroundColor = Color.White;
         _resultsGrid.BorderStyle = BorderStyle.FixedSingle;
         _resultsGrid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
         _resultsGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+        _resultsGrid.RowTemplate.Height = 22;
         _resultsGrid.RowHeadersVisible = false;
         _resultsGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _resultsGrid.ReadOnly = true;
@@ -410,14 +414,16 @@ public sealed class MainForm : Form
             Name = "TreeIcon",
             HeaderText = "",
             Width = 34,
-            ImageLayout = DataGridViewImageCellLayout.Zoom,
+            ImageLayout = DataGridViewImageCellLayout.Normal,
+            DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter },
         });
         _resultsGrid.Columns.Add(new DataGridViewImageColumn
         {
             Name = "StatusIcon",
             HeaderText = "",
             Width = 34,
-            ImageLayout = DataGridViewImageCellLayout.Zoom,
+            ImageLayout = DataGridViewImageCellLayout.Normal,
+            DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter },
             ToolTipText = "Status",
         });
         AddGridColumn(nameof(ScanResultRow.IpAddress), "IP Address", 140);
@@ -577,7 +583,7 @@ public sealed class MainForm : Form
     {
         // Batching scan updates keeps the Stop button and window chrome
         // responsive even when a large subnet is returning results quickly.
-        _scanRefreshTimer.Interval = 150;
+        _scanRefreshTimer.Interval = 250;
         _scanRefreshTimer.Tick += (_, _) => FlushScanProgress();
     }
 
@@ -611,21 +617,29 @@ public sealed class MainForm : Form
         var search = _searchInput.Text.Trim();
         var filtered = _results.Where(PassesStatusFilter).Where(row => MatchesSearch(row, search)).ToList();
 
-        _visibleResults.Clear();
-        foreach (var row in filtered)
+        _resultsGrid.SuspendLayout();
+        try
         {
-            _visibleResults.Add(row);
-            // Child service rows are generated only for the current view. The
-            // scanner stores services on the host result, which makes filtering,
-            // exporting, and collapsing hosts simpler.
-            if (_expandedHosts.Contains(row.IpAddress) && row.Source?.DetectedServices.Count > 0)
+            _visibleResults.Clear();
+            foreach (var row in filtered)
             {
-                _visibleResults.AddRange(row.Source.DetectedServices.Select(service => ScanResultRow.FromService(row, service)));
+                _visibleResults.Add(row);
+                // Child service rows are generated only for the current view. The
+                // scanner stores services on the host result, which makes filtering,
+                // exporting, and collapsing hosts simpler.
+                if (_expandedHosts.Contains(row.IpAddress) && row.Source?.DetectedServices.Count > 0)
+                {
+                    _visibleResults.AddRange(row.Source.DetectedServices.Select(service => ScanResultRow.FromService(row, service)));
+                }
             }
-        }
 
-        _resultsSource.ResetBindings(false);
-        UpdateDetailsPane(GetSelectedRow());
+            _resultsSource.ResetBindings(false);
+            UpdateDetailsPane(GetSelectedRow());
+        }
+        finally
+        {
+            _resultsGrid.ResumeLayout();
+        }
     }
 
     private bool PassesStatusFilter(ScanResultRow row)
@@ -1092,5 +1106,14 @@ public sealed class MainForm : Form
             ExportFormat.Xml => "XML file (*.xml)|*.xml",
             _ => "All files (*.*)|*.*",
         };
+    }
+
+    private static void EnableDoubleBuffering(Control control)
+    {
+        // DataGridView hides DoubleBuffered. Enabling it reduces remote-session
+        // repaint tearing while scrolling result-heavy grids.
+        typeof(Control)
+            .GetProperty("DoubleBuffered", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?.SetValue(control, true, null);
     }
 }
